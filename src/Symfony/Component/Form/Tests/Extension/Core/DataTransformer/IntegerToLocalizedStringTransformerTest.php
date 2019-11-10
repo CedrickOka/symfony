@@ -17,11 +17,17 @@ use Symfony\Component\Intl\Util\IntlTestHelper;
 
 class IntegerToLocalizedStringTransformerTest extends TestCase
 {
-    protected function setUp()
-    {
-        parent::setUp();
+    private $defaultLocale;
 
+    protected function setUp(): void
+    {
+        $this->defaultLocale = \Locale::getDefault();
         \Locale::setDefault('en');
+    }
+
+    protected function tearDown(): void
+    {
+        \Locale::setDefault($this->defaultLocale);
     }
 
     public function transformWithRoundingProvider()
@@ -85,18 +91,6 @@ class IntegerToLocalizedStringTransformerTest extends TestCase
         $this->assertEquals($output, $transformer->transform($input));
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation Passing a precision as the first value to %s::__construct() is deprecated since Symfony 4.2 and support for it will be dropped in 5.0.
-     * @dataProvider transformWithRoundingProvider
-     */
-    public function testTransformWithRoundingUsingLegacyConstructorSignature($input, $output, $roundingMode)
-    {
-        $transformer = new IntegerToLocalizedStringTransformer(null, null, $roundingMode);
-
-        $this->assertEquals($output, $transformer->transform($input));
-    }
-
     public function testReverseTransform()
     {
         // Since we test against "de_AT", we need the full implementation
@@ -107,9 +101,7 @@ class IntegerToLocalizedStringTransformerTest extends TestCase
         $transformer = new IntegerToLocalizedStringTransformer();
 
         $this->assertEquals(1, $transformer->reverseTransform('1'));
-        $this->assertEquals(1, $transformer->reverseTransform('1,5'));
-        $this->assertEquals(1234, $transformer->reverseTransform('1234,5'));
-        $this->assertEquals(12345, $transformer->reverseTransform('12345,912'));
+        $this->assertEquals(12345, $transformer->reverseTransform('12345'));
     }
 
     public function testReverseTransformEmpty()
@@ -128,29 +120,10 @@ class IntegerToLocalizedStringTransformerTest extends TestCase
 
         $transformer = new IntegerToLocalizedStringTransformer(true);
 
-        $this->assertEquals(1234, $transformer->reverseTransform('1.234,5'));
-        $this->assertEquals(12345, $transformer->reverseTransform('12.345,912'));
-        $this->assertEquals(1234, $transformer->reverseTransform('1234,5'));
-        $this->assertEquals(12345, $transformer->reverseTransform('12345,912'));
-    }
-
-    /**
-     * @group legacy
-     * @expectedDeprecation Passing a precision as the first value to %s::__construct() is deprecated since Symfony 4.2 and support for it will be dropped in 5.0.
-     */
-    public function testReverseTransformWithGroupingUsingLegacyConstructorSignature()
-    {
-        // Since we test against "de_DE", we need the full implementation
-        IntlTestHelper::requireFullIntl($this, false);
-
-        \Locale::setDefault('de_DE');
-
-        $transformer = new IntegerToLocalizedStringTransformer(null, true);
-
-        $this->assertEquals(1234, $transformer->reverseTransform('1.234,5'));
-        $this->assertEquals(12345, $transformer->reverseTransform('12.345,912'));
-        $this->assertEquals(1234, $transformer->reverseTransform('1234,5'));
-        $this->assertEquals(12345, $transformer->reverseTransform('12345,912'));
+        $this->assertEquals(1234, $transformer->reverseTransform('1.234'));
+        $this->assertEquals(12345, $transformer->reverseTransform('12.345'));
+        $this->assertEquals(1234, $transformer->reverseTransform('1234'));
+        $this->assertEquals(12345, $transformer->reverseTransform('12345'));
     }
 
     public function reverseTransformWithRoundingProvider()
@@ -214,73 +187,72 @@ class IntegerToLocalizedStringTransformerTest extends TestCase
         $this->assertEquals($output, $transformer->reverseTransform($input));
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation Passing a precision as the first value to %s::__construct() is deprecated since Symfony 4.2 and support for it will be dropped in 5.0.
-     * @dataProvider reverseTransformWithRoundingProvider
-     */
-    public function testReverseTransformWithRoundingUsingLegacyConstructorSignature($input, $output, $roundingMode)
-    {
-        $transformer = new IntegerToLocalizedStringTransformer(null, null, $roundingMode);
-
-        $this->assertEquals($output, $transformer->reverseTransform($input));
-    }
-
-    /**
-     * @expectedException \Symfony\Component\Form\Exception\TransformationFailedException
-     */
     public function testReverseTransformExpectsString()
     {
+        $this->expectException('Symfony\Component\Form\Exception\TransformationFailedException');
         $transformer = new IntegerToLocalizedStringTransformer();
 
         $transformer->reverseTransform(1);
     }
 
-    /**
-     * @expectedException \Symfony\Component\Form\Exception\TransformationFailedException
-     */
     public function testReverseTransformExpectsValidNumber()
     {
+        $this->expectException('Symfony\Component\Form\Exception\TransformationFailedException');
         $transformer = new IntegerToLocalizedStringTransformer();
 
         $transformer->reverseTransform('foo');
     }
 
     /**
-     * @expectedException \Symfony\Component\Form\Exception\TransformationFailedException
+     * @dataProvider floatNumberProvider
      */
+    public function testReverseTransformExpectsInteger($number, $locale)
+    {
+        $this->expectException('Symfony\Component\Form\Exception\TransformationFailedException');
+        IntlTestHelper::requireFullIntl($this, false);
+
+        \Locale::setDefault($locale);
+
+        $transformer = new IntegerToLocalizedStringTransformer();
+
+        $transformer->reverseTransform($number);
+    }
+
+    public function floatNumberProvider()
+    {
+        return [
+            ['12345.912', 'en'],
+            ['1.234,5', 'de_DE'],
+        ];
+    }
+
     public function testReverseTransformDisallowsNaN()
     {
+        $this->expectException('Symfony\Component\Form\Exception\TransformationFailedException');
         $transformer = new IntegerToLocalizedStringTransformer();
 
         $transformer->reverseTransform('NaN');
     }
 
-    /**
-     * @expectedException \Symfony\Component\Form\Exception\TransformationFailedException
-     */
     public function testReverseTransformDisallowsNaN2()
     {
+        $this->expectException('Symfony\Component\Form\Exception\TransformationFailedException');
         $transformer = new IntegerToLocalizedStringTransformer();
 
         $transformer->reverseTransform('nan');
     }
 
-    /**
-     * @expectedException \Symfony\Component\Form\Exception\TransformationFailedException
-     */
     public function testReverseTransformDisallowsInfinity()
     {
+        $this->expectException('Symfony\Component\Form\Exception\TransformationFailedException');
         $transformer = new IntegerToLocalizedStringTransformer();
 
         $transformer->reverseTransform('∞');
     }
 
-    /**
-     * @expectedException \Symfony\Component\Form\Exception\TransformationFailedException
-     */
     public function testReverseTransformDisallowsNegativeInfinity()
     {
+        $this->expectException('Symfony\Component\Form\Exception\TransformationFailedException');
         $transformer = new IntegerToLocalizedStringTransformer();
 
         $transformer->reverseTransform('-∞');

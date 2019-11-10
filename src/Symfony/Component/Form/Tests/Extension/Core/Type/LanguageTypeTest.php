@@ -12,14 +12,13 @@
 namespace Symfony\Component\Form\Tests\Extension\Core\Type;
 
 use Symfony\Component\Form\ChoiceList\View\ChoiceView;
-use Symfony\Component\Form\Extension\Core\Type\LanguageType;
 use Symfony\Component\Intl\Util\IntlTestHelper;
 
 class LanguageTypeTest extends BaseTypeTest
 {
     const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\LanguageType';
 
-    protected function setUp()
+    protected function setUp(): void
     {
         IntlTestHelper::requireIntl($this, false);
 
@@ -31,11 +30,9 @@ class LanguageTypeTest extends BaseTypeTest
         $choices = $this->factory->create(static::TESTED_TYPE)
             ->createView()->vars['choices'];
 
-        $this->assertContains(new ChoiceView('en', 'en', 'English'), $choices, '', false, false);
-        $this->assertContains(new ChoiceView('en_GB', 'en_GB', 'British English'), $choices, '', false, false);
-        $this->assertContains(new ChoiceView('en_US', 'en_US', 'American English'), $choices, '', false, false);
-        $this->assertContains(new ChoiceView('fr', 'fr', 'French'), $choices, '', false, false);
-        $this->assertContains(new ChoiceView('my', 'my', 'Burmese'), $choices, '', false, false);
+        $this->assertContainsEquals(new ChoiceView('en', 'en', 'English'), $choices);
+        $this->assertContainsEquals(new ChoiceView('fr', 'fr', 'French'), $choices);
+        $this->assertContainsEquals(new ChoiceView('my', 'my', 'Burmese'), $choices);
     }
 
     /**
@@ -50,11 +47,43 @@ class LanguageTypeTest extends BaseTypeTest
             ->createView()->vars['choices'];
 
         // Don't check objects for identity
-        $this->assertContains(new ChoiceView('en', 'en', 'англійська'), $choices, '', false, false);
-        $this->assertContains(new ChoiceView('en_GB', 'en_GB', 'British English'), $choices, '', false, false);
-        $this->assertContains(new ChoiceView('en_US', 'en_US', 'англійська (США)'), $choices, '', false, false);
-        $this->assertContains(new ChoiceView('fr', 'fr', 'французька'), $choices, '', false, false);
-        $this->assertContains(new ChoiceView('my', 'my', 'бірманська'), $choices, '', false, false);
+        $this->assertContainsEquals(new ChoiceView('en', 'en', 'англійська'), $choices);
+        $this->assertContainsEquals(new ChoiceView('fr', 'fr', 'французька'), $choices);
+        $this->assertContainsEquals(new ChoiceView('my', 'my', 'бірманська'), $choices);
+    }
+
+    public function testAlpha3Option()
+    {
+        $choices = $this->factory
+            ->create(static::TESTED_TYPE, null, [
+                'alpha3' => true,
+            ])
+            ->createView()->vars['choices'];
+
+        // Don't check objects for identity
+        $this->assertContainsEquals(new ChoiceView('eng', 'eng', 'English'), $choices);
+        $this->assertContainsEquals(new ChoiceView('fra', 'fra', 'French'), $choices);
+        // Burmese has no three letter language code
+        $this->assertNotContainsEquals(new ChoiceView('my', 'my', 'Burmese'), $choices);
+    }
+
+    /**
+     * @requires extension intl
+     */
+    public function testChoiceTranslationLocaleAndAlpha3Option()
+    {
+        $choices = $this->factory
+            ->create(static::TESTED_TYPE, null, [
+                'choice_translation_locale' => 'uk',
+                'alpha3' => true,
+            ])
+            ->createView()->vars['choices'];
+
+        // Don't check objects for identity
+        $this->assertContainsEquals(new ChoiceView('eng', 'eng', 'англійська'), $choices);
+        $this->assertContainsEquals(new ChoiceView('fra', 'fra', 'французька'), $choices);
+        // Burmese has no three letter language code
+        $this->assertNotContainsEquals(new ChoiceView('my', 'my', 'бірманська'), $choices);
     }
 
     public function testMultipleLanguagesIsNotIncluded()
@@ -62,7 +91,7 @@ class LanguageTypeTest extends BaseTypeTest
         $choices = $this->factory->create(static::TESTED_TYPE, 'language')
             ->createView()->vars['choices'];
 
-        $this->assertNotContains(new ChoiceView('mul', 'mul', 'Mehrsprachig'), $choices, '', false, false);
+        $this->assertNotContainsEquals(new ChoiceView('mul', 'mul', 'Mehrsprachig'), $choices);
     }
 
     public function testSubmitNull($expected = null, $norm = null, $view = null)
@@ -73,15 +102,5 @@ class LanguageTypeTest extends BaseTypeTest
     public function testSubmitNullUsesDefaultEmptyData($emptyData = 'en', $expectedData = 'en')
     {
         parent::testSubmitNullUsesDefaultEmptyData($emptyData, $expectedData);
-    }
-
-    /**
-     * @group legacy
-     */
-    public function testInvalidChoiceValuesAreDropped()
-    {
-        $type = new LanguageType();
-
-        $this->assertSame([], $type->loadChoicesForValues(['foo']));
     }
 }

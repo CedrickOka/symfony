@@ -107,11 +107,9 @@ class EncoderFactoryTest extends TestCase
         $this->assertEquals($expectedEncoder->encodePassword('foo', ''), $encoder->encodePassword('foo', ''));
     }
 
-    /**
-     * @expectedException \RuntimeException
-     */
     public function testGetInvalidNamedEncoderForEncoderAware()
     {
+        $this->expectException('RuntimeException');
         $factory = new EncoderFactory([
             'Symfony\Component\Security\Core\Tests\Encoder\EncAwareUser' => new MessageDigestPasswordEncoder('sha1'),
             'encoder_name' => new MessageDigestPasswordEncoder('sha256'),
@@ -119,7 +117,7 @@ class EncoderFactoryTest extends TestCase
 
         $user = new EncAwareUser('user', 'pass');
         $user->encoderName = 'invalid_encoder_name';
-        $encoder = $factory->getEncoder($user);
+        $factory->getEncoder($user);
     }
 
     public function testGetEncoderForEncoderAwareWithClassName()
@@ -137,19 +135,19 @@ class EncoderFactoryTest extends TestCase
 
 class SomeUser implements UserInterface
 {
-    public function getRoles()
+    public function getRoles(): array
     {
     }
 
-    public function getPassword()
+    public function getPassword(): ?string
     {
     }
 
-    public function getSalt()
+    public function getSalt(): ?string
     {
     }
 
-    public function getUsername()
+    public function getUsername(): string
     {
     }
 
@@ -166,7 +164,7 @@ class EncAwareUser extends SomeUser implements EncoderAwareInterface
 {
     public $encoderName = 'encoder_name';
 
-    public function getEncoderName()
+    public function getEncoderName(): ?string
     {
         return $this->encoderName;
     }

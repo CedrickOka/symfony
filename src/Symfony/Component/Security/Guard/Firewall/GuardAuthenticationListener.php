@@ -14,14 +14,13 @@ namespace Symfony\Component\Security\Guard\Firewall;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Event\GetResponseEvent;
+use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\Security\Core\Authentication\AuthenticationManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Guard\AuthenticatorInterface;
 use Symfony\Component\Security\Guard\GuardAuthenticatorHandler;
 use Symfony\Component\Security\Guard\Token\PreAuthenticationGuardToken;
-use Symfony\Component\Security\Http\Firewall\ListenerInterface;
 use Symfony\Component\Security\Http\RememberMe\RememberMeServicesInterface;
 
 /**
@@ -29,8 +28,10 @@ use Symfony\Component\Security\Http\RememberMe\RememberMeServicesInterface;
  *
  * @author Ryan Weaver <ryan@knpuniversity.com>
  * @author Amaury Leroux de Lens <amaury@lerouxdelens.com>
+ *
+ * @final
  */
-class GuardAuthenticationListener implements ListenerInterface
+class GuardAuthenticationListener
 {
     private $guardHandler;
     private $authenticationManager;
@@ -40,11 +41,8 @@ class GuardAuthenticationListener implements ListenerInterface
     private $rememberMeServices;
 
     /**
-     * @param GuardAuthenticatorHandler         $guardHandler          The Guard handler
-     * @param AuthenticationManagerInterface    $authenticationManager An AuthenticationManagerInterface instance
-     * @param string                            $providerKey           The provider (i.e. firewall) key
-     * @param iterable|AuthenticatorInterface[] $guardAuthenticators   The authenticators, with keys that match what's passed to GuardAuthenticationProvider
-     * @param LoggerInterface                   $logger                A LoggerInterface instance
+     * @param string                            $providerKey         The provider (i.e. firewall) key
+     * @param iterable|AuthenticatorInterface[] $guardAuthenticators The authenticators, with keys that match what's passed to GuardAuthenticationProvider
      */
     public function __construct(GuardAuthenticatorHandler $guardHandler, AuthenticationManagerInterface $authenticationManager, string $providerKey, $guardAuthenticators, LoggerInterface $logger = null)
     {
@@ -62,7 +60,7 @@ class GuardAuthenticationListener implements ListenerInterface
     /**
      * Iterates over each authenticator to see if each wants to authenticate the request.
      */
-    public function handle(GetResponseEvent $event)
+    public function __invoke(RequestEvent $event)
     {
         if (null !== $this->logger) {
             $context = ['firewall_key' => $this->providerKey];
@@ -91,7 +89,7 @@ class GuardAuthenticationListener implements ListenerInterface
         }
     }
 
-    private function executeGuardAuthenticator($uniqueGuardKey, AuthenticatorInterface $guardAuthenticator, GetResponseEvent $event)
+    private function executeGuardAuthenticator(string $uniqueGuardKey, AuthenticatorInterface $guardAuthenticator, RequestEvent $event)
     {
         $request = $event->getRequest();
         try {

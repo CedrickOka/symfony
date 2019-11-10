@@ -11,7 +11,7 @@
 
 namespace Symfony\Component\Form\Test;
 
-use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Form\FormBuilder;
 use Symfony\Component\Form\Test\Traits\ValidatorExtensionTrait;
 
@@ -23,19 +23,19 @@ abstract class TypeTestCase extends FormIntegrationTestCase
     protected $builder;
 
     /**
-     * @var EventDispatcher
+     * @var EventDispatcherInterface
      */
     protected $dispatcher;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
-        $this->dispatcher = $this->getMockBuilder('Symfony\Component\EventDispatcher\EventDispatcherInterface')->getMock();
+        $this->dispatcher = $this->getMockBuilder(EventDispatcherInterface::class)->getMock();
         $this->builder = new FormBuilder('', null, $this->dispatcher, $this->factory);
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         if (\in_array(ValidatorExtensionTrait::class, class_uses($this))) {
             $this->validator = null;

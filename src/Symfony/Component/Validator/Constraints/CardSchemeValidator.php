@@ -21,9 +21,8 @@ use Symfony\Component\Validator\Exception\UnexpectedTypeException;
  * @author Tim Nagel <t.nagel@infinite.net.au>
  * @author Bernhard Schussek <bschussek@gmail.com>
  *
- * @see http://en.wikipedia.org/wiki/Bank_card_number
- * @see http://www.regular-expressions.info/creditcard.html
- * @see http://www.barclaycard.co.uk/business/files/Ranges_and_Rules_September_2014.pdf
+ * @see https://en.wikipedia.org/wiki/Payment_card_number
+ * @see https://www.regular-expressions.info/creditcard.html
  */
 class CardSchemeValidator extends ConstraintValidator
 {
@@ -78,6 +77,10 @@ class CardSchemeValidator extends ConstraintValidator
             '/^5[1-5][0-9]{14}$/',
             '/^2(22[1-9][0-9]{12}|2[3-9][0-9]{13}|[3-6][0-9]{14}|7[0-1][0-9]{13}|720[0-9]{12})$/',
         ],
+        // Payment system MIR numbers start with 220, then 1 digit from 0 to 4, then 12 digits
+        'MIR' => [
+            '/^220[0-4][0-9]{12}$/',
+        ],
         // All UATP card numbers start with a 1 and have a length of 15 digits.
         'UATP' => [
             '/^1[0-9]{14}$/',
@@ -91,8 +94,7 @@ class CardSchemeValidator extends ConstraintValidator
     /**
      * Validates a creditcard belongs to a specified scheme.
      *
-     * @param mixed      $value
-     * @param Constraint $constraint
+     * @param mixed $value
      */
     public function validate($value, Constraint $constraint)
     {

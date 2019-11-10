@@ -44,11 +44,8 @@ class DoctrineDataCollector extends DataCollector
 
     /**
      * Adds the stack logger for a connection.
-     *
-     * @param string     $name
-     * @param DebugStack $logger
      */
-    public function addLogger($name, DebugStack $logger)
+    public function addLogger(string $name, DebugStack $logger)
     {
         $this->loggers[$name] = $logger;
     }
@@ -56,7 +53,7 @@ class DoctrineDataCollector extends DataCollector
     /**
      * {@inheritdoc}
      */
-    public function collect(Request $request, Response $response, \Exception $exception = null)
+    public function collect(Request $request, Response $response, \Throwable $exception = null)
     {
         $queries = [];
         foreach ($this->loggers as $name => $logger) {
@@ -120,7 +117,7 @@ class DoctrineDataCollector extends DataCollector
         return 'db';
     }
 
-    private function sanitizeQueries($connectionName, $queries)
+    private function sanitizeQueries(string $connectionName, array $queries): array
     {
         foreach ($queries as $i => $query) {
             $queries[$i] = $this->sanitizeQuery($connectionName, $query);
@@ -129,7 +126,7 @@ class DoctrineDataCollector extends DataCollector
         return $queries;
     }
 
-    private function sanitizeQuery($connectionName, $query)
+    private function sanitizeQuery(string $connectionName, array $query): array
     {
         $query['explainable'] = true;
         if (null === $query['params']) {
@@ -137,6 +134,9 @@ class DoctrineDataCollector extends DataCollector
         }
         if (!\is_array($query['params'])) {
             $query['params'] = [$query['params']];
+        }
+        if (!\is_array($query['types'])) {
+            $query['types'] = [];
         }
         foreach ($query['params'] as $j => $param) {
             if (isset($query['types'][$j])) {
@@ -163,6 +163,8 @@ class DoctrineDataCollector extends DataCollector
                 $query['explainable'] = false;
             }
         }
+
+        $query['params'] = $this->cloneVar($query['params']);
 
         return $query;
     }

@@ -19,8 +19,8 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\Debug\Exception\FatalThrowableError;
 use Symfony\Component\DependencyInjection\ContainerAwareInterface;
+use Symfony\Component\ErrorHandler\Exception\ErrorException;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\HttpKernel\KernelInterface;
@@ -53,6 +53,16 @@ class Application extends BaseApplication
     public function getKernel()
     {
         return $this->kernel;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function reset()
+    {
+        if ($this->kernel->getContainer()->has('services_resetter')) {
+            $this->kernel->getContainer()->get('services_resetter')->reset();
+        }
     }
 
     /**
@@ -164,10 +174,8 @@ class Application extends BaseApplication
             if ($bundle instanceof Bundle) {
                 try {
                     $bundle->registerCommands($this);
-                } catch (\Exception $e) {
-                    $this->registrationErrors[] = $e;
                 } catch (\Throwable $e) {
-                    $this->registrationErrors[] = new FatalThrowableError($e);
+                    $this->registrationErrors[] = $e;
                 }
             }
         }
@@ -182,10 +190,8 @@ class Application extends BaseApplication
                 if (!isset($lazyCommandIds[$id])) {
                     try {
                         $this->add($container->get($id));
-                    } catch (\Exception $e) {
-                        $this->registrationErrors[] = $e;
                     } catch (\Throwable $e) {
-                        $this->registrationErrors[] = new FatalThrowableError($e);
+                        $this->registrationErrors[] = $e;
                     }
                 }
             }
@@ -201,7 +207,15 @@ class Application extends BaseApplication
         (new SymfonyStyle($input, $output))->warning('Some commands could not be registered:');
 
         foreach ($this->registrationErrors as $error) {
-            $this->doRenderException($error, $output);
+            if (method_exists($this, 'doRenderThrowable')) {
+                $this->doRenderThrowable($error, $output);
+            } else {
+                if (!$error instanceof \Exception) {
+                    $error = new ErrorException($error);
+                }
+
+                $this->doRenderException($error, $output);
+            }
         }
     }
 }

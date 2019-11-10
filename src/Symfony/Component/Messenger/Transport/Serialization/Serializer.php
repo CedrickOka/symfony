@@ -12,11 +12,14 @@
 namespace Symfony\Component\Messenger\Transport\Serialization;
 
 use Symfony\Component\Messenger\Envelope;
-use Symfony\Component\Messenger\Exception\InvalidArgumentException;
 use Symfony\Component\Messenger\Exception\LogicException;
+use Symfony\Component\Messenger\Exception\MessageDecodingFailedException;
+use Symfony\Component\Messenger\Stamp\NonSendableStampInterface;
 use Symfony\Component\Messenger\Stamp\SerializerStamp;
+use Symfony\Component\Messenger\Stamp\StampInterface;
 use Symfony\Component\Serializer\Encoder\JsonEncoder;
 use Symfony\Component\Serializer\Encoder\XmlEncoder;
+use Symfony\Component\Serializer\Exception\UnexpectedValueException;
 use Symfony\Component\Serializer\Normalizer\ArrayDenormalizer;
 use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 use Symfony\Component\Serializer\Serializer as SymfonySerializer;
@@ -24,8 +27,6 @@ use Symfony\Component\Serializer\SerializerInterface as SymfonySerializerInterfa
 
 /**
  * @author Samuel Roze <samuel.roze@gmail.com>
- *
- * @experimental in 4.2
  */
 class Serializer implements SerializerInterface
 {
@@ -45,7 +46,7 @@ class Serializer implements SerializerInterface
     public static function create(): self
     {
         if (!class_exists(SymfonySerializer::class)) {
-            throw new LogicException(sprintf('The default Messenger Serializer requires Symfony\'s Serializer component. Try running "composer require symfony/serializer".'));
+            throw new LogicException(sprintf('The "%s" class requires Symfony\'s Serializer component. Try running "composer require symfony/serializer" or use "%s" instead.', __CLASS__, PhpSerializer::class));
         }
 
         $encoders = [new XmlEncoder(), new JsonEncoder()];
@@ -61,23 +62,28 @@ class Serializer implements SerializerInterface
     public function decode(array $encodedEnvelope): Envelope
     {
         if (empty($encodedEnvelope['body']) || empty($encodedEnvelope['headers'])) {
-            throw new InvalidArgumentException('Encoded envelope should have at least a "body" and some "headers".');
+            throw new MessageDecodingFailedException('Encoded envelope should have at least a "body" and some "headers".');
         }
 
         if (empty($encodedEnvelope['headers']['type'])) {
-            throw new InvalidArgumentException('Encoded envelope does not have a "type" header.');
+            throw new MessageDecodingFailedException('Encoded envelope does not have a "type" header.');
         }
 
         $stamps = $this->decodeStamps($encodedEnvelope);
+        $serializerStamp = $this->findFirstSerializerStamp($stamps);
 
         $context = $this->context;
-        if (isset($stamps[SerializerStamp::class])) {
-            $context = end($stamps[SerializerStamp::class])->getContext() + $context;
+        if (null !== $serializerStamp) {
+            $context = $serializerStamp->getContext() + $context;
         }
 
-        $message = $this->serializer->deserialize($encodedEnvelope['body'], $encodedEnvelope['headers']['type'], $this->format, $context);
+        try {
+            $message = $this->serializer->deserialize($encodedEnvelope['body'], $encodedEnvelope['headers']['type'], $this->format, $context);
+        } catch (UnexpectedValueException $e) {
+            throw new MessageDecodingFailedException(sprintf('Could not decode message: %s.', $e->getMessage()), $e->getCode(), $e);
+        }
 
-        return new Envelope($message, ...$stamps);
+        return new Envelope($message, $stamps);
     }
 
     /**
@@ -91,7 +97,9 @@ class Serializer implements SerializerInterface
             $context = $serializerStamp->getContext() + $context;
         }
 
-        $headers = ['type' => \get_class($envelope->getMessage())] + $this->encodeStamps($envelope);
+        $envelope = $envelope->withoutStampsOfType(NonSendableStampInterface::class);
+
+        $headers = ['type' => \get_class($envelope->getMessage())] + $this->encodeStamps($envelope) + $this->getContentTypeHeader();
 
         return [
             'body' => $this->serializer->serialize($envelope->getMessage(), $this->format, $context),
@@ -107,7 +115,11 @@ class Serializer implements SerializerInterface
                 continue;
             }
 
-            $stamps[] = $this->serializer->deserialize($value, substr($name, \strlen(self::STAMP_HEADER_PREFIX)).'[]', $this->format, $this->context);
+            try {
+                $stamps[] = $this->serializer->deserialize($value, substr($name, \strlen(self::STAMP_HEADER_PREFIX)).'[]', $this->format, $this->context);
+            } catch (UnexpectedValueException $e) {
+                throw new MessageDecodingFailedException(sprintf('Could not decode stamp: %s.', $e->getMessage()), $e->getCode(), $e);
+            }
         }
         if ($stamps) {
             $stamps = array_merge(...$stamps);
@@ -128,5 +140,43 @@ class Serializer implements SerializerInterface
         }
 
         return $headers;
+    }
+
+    /**
+     * @param StampInterface[] $stamps
+     */
+    private function findFirstSerializerStamp(array $stamps): ?SerializerStamp
+    {
+        foreach ($stamps as $stamp) {
+            if ($stamp instanceof SerializerStamp) {
+                return $stamp;
+            }
+        }
+
+        return null;
+    }
+
+    private function getContentTypeHeader(): array
+    {
+        $mimeType = $this->getMimeTypeForFormat();
+
+        return null === $mimeType ? [] : ['Content-Type' => $mimeType];
+    }
+
+    private function getMimeTypeForFormat(): ?string
+    {
+        switch ($this->format) {
+            case 'json':
+                return 'application/json';
+            case 'xml':
+                return 'application/xml';
+            case 'yml':
+            case 'yaml':
+                return 'application/x-yaml';
+            case 'csv':
+                return 'text/csv';
+        }
+
+        return null;
     }
 }

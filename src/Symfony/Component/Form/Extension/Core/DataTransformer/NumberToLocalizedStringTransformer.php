@@ -77,8 +77,9 @@ class NumberToLocalizedStringTransformer implements DataTransformerInterface
     protected $roundingMode;
 
     private $scale;
+    private $locale;
 
-    public function __construct(int $scale = null, ?bool $grouping = false, ?int $roundingMode = self::ROUND_HALF_UP)
+    public function __construct(int $scale = null, ?bool $grouping = false, ?int $roundingMode = self::ROUND_HALF_UP, string $locale = null)
     {
         if (null === $grouping) {
             $grouping = false;
@@ -91,6 +92,7 @@ class NumberToLocalizedStringTransformer implements DataTransformerInterface
         $this->scale = $scale;
         $this->grouping = $grouping;
         $this->roundingMode = $roundingMode;
+        $this->locale = $locale;
     }
 
     /**
@@ -143,7 +145,7 @@ class NumberToLocalizedStringTransformer implements DataTransformerInterface
         }
 
         if ('' === $value) {
-            return;
+            return null;
         }
 
         if (\in_array($value, ['NaN', 'NAN', 'nan'], true)) {
@@ -181,9 +183,7 @@ class NumberToLocalizedStringTransformer implements DataTransformerInterface
             throw new TransformationFailedException('I don\'t have a clear idea what infinity looks like');
         }
 
-        if (\is_int($result) && $result === (int) $float = (float) $result) {
-            $result = $float;
-        }
+        $result = $this->castParsedValue($result);
 
         if (false !== $encoding = mb_detect_encoding($value, null, true)) {
             $length = mb_strlen($value, $encoding);
@@ -216,7 +216,7 @@ class NumberToLocalizedStringTransformer implements DataTransformerInterface
      */
     protected function getNumberFormatter()
     {
-        $formatter = new \NumberFormatter(\Locale::getDefault(), \NumberFormatter::DECIMAL);
+        $formatter = new \NumberFormatter($this->locale ?? \Locale::getDefault(), \NumberFormatter::DECIMAL);
 
         if (null !== $this->scale) {
             $formatter->setAttribute(\NumberFormatter::FRACTION_DIGITS, $this->scale);
@@ -226,6 +226,18 @@ class NumberToLocalizedStringTransformer implements DataTransformerInterface
         $formatter->setAttribute(\NumberFormatter::GROUPING_USED, $this->grouping);
 
         return $formatter;
+    }
+
+    /**
+     * @internal
+     */
+    protected function castParsedValue($value)
+    {
+        if (\is_int($value) && $value === (int) $float = (float) $value) {
+            return $float;
+        }
+
+        return $value;
     }
 
     /**

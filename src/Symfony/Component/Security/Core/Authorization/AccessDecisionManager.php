@@ -13,6 +13,7 @@ namespace Symfony\Component\Security\Core\Authorization;
 
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
+use Symfony\Component\Security\Core\Exception\InvalidArgumentException;
 
 /**
  * AccessDecisionManager is the base class for all access decision managers
@@ -42,7 +43,7 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
     public function __construct(iterable $voters = [], string $strategy = self::STRATEGY_AFFIRMATIVE, bool $allowIfAllAbstainDecisions = false, bool $allowIfEqualGrantedDeniedDecisions = true)
     {
         $strategyMethod = 'decide'.ucfirst($strategy);
-        if (!\is_callable([$this, $strategyMethod])) {
+        if ('' === $strategy || !\is_callable([$this, $strategyMethod])) {
             throw new \InvalidArgumentException(sprintf('The strategy "%s" is not supported.', $strategy));
         }
 
@@ -57,6 +58,10 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
      */
     public function decide(TokenInterface $token, array $attributes, $object = null)
     {
+        if (\count($attributes) > 1) {
+            throw new InvalidArgumentException(sprintf('Passing more than one Security attribute to %s() is not supported.', __METHOD__));
+        }
+
         return $this->{$this->strategy}($token, $attributes, $object);
     }
 
@@ -66,7 +71,7 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
      * If all voters abstained from voting, the decision will be based on the
      * allowIfAllAbstainDecisions property value (defaults to false).
      */
-    private function decideAffirmative(TokenInterface $token, array $attributes, $object = null)
+    private function decideAffirmative(TokenInterface $token, array $attributes, $object = null): bool
     {
         $deny = 0;
         foreach ($this->voters as $voter) {
@@ -106,7 +111,7 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
      * If all voters abstained from voting, the decision will be based on the
      * allowIfAllAbstainDecisions property value (defaults to false).
      */
-    private function decideConsensus(TokenInterface $token, array $attributes, $object = null)
+    private function decideConsensus(TokenInterface $token, array $attributes, $object = null): bool
     {
         $grant = 0;
         $deny = 0;
@@ -147,7 +152,7 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
      * If all voters abstained from voting, the decision will be based on the
      * allowIfAllAbstainDecisions property value (defaults to false).
      */
-    private function decideUnanimous(TokenInterface $token, array $attributes, $object = null)
+    private function decideUnanimous(TokenInterface $token, array $attributes, $object = null): bool
     {
         $grant = 0;
         foreach ($this->voters as $voter) {

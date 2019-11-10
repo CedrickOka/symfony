@@ -24,14 +24,14 @@ class FormBuilderTest extends TestCase
     private $factory;
     private $builder;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->dispatcher = $this->getMockBuilder('Symfony\Component\EventDispatcher\EventDispatcherInterface')->getMock();
         $this->factory = $this->getMockBuilder('Symfony\Component\Form\FormFactoryInterface')->getMock();
         $this->builder = new FormBuilder('name', null, $this->dispatcher, $this->factory);
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         $this->dispatcher = null;
         $this->factory = null;
@@ -53,12 +53,6 @@ class FormBuilderTest extends TestCase
     {
         $this->expectException('Symfony\Component\Form\Exception\UnexpectedTypeException');
         $this->builder->add(true);
-    }
-
-    public function testAddTypeNoString()
-    {
-        $this->expectException('Symfony\Component\Form\Exception\UnexpectedTypeException');
-        $this->builder->add('foo', 1234);
     }
 
     public function testAddWithGuessFluent()
@@ -93,7 +87,7 @@ class FormBuilderTest extends TestCase
         $this->factory->expects($this->once())
             ->method('createNamedBuilder')
             ->with('foo', 'Symfony\Component\Form\Extension\Core\Type\TextType')
-            ->will($this->returnValue(new FormBuilder('foo', null, $this->dispatcher, $this->factory)));
+            ->willReturn(new FormBuilder('foo', null, $this->dispatcher, $this->factory));
 
         $this->assertCount(0, $this->builder->all());
         $this->assertFalse($this->builder->has('foo'));
@@ -118,13 +112,6 @@ class FormBuilderTest extends TestCase
         $children = $this->builder->all();
 
         $this->assertSame(['foo', 'bar', 'baz'], array_keys($children));
-    }
-
-    public function testAddFormType()
-    {
-        $this->assertFalse($this->builder->has('foo'));
-        $this->builder->add('foo', $this->getMockBuilder('Symfony\Component\Form\FormTypeInterface')->getMock());
-        $this->assertTrue($this->builder->has('foo'));
     }
 
     public function testRemove()
@@ -169,12 +156,8 @@ class FormBuilderTest extends TestCase
 
     public function testGetUnknown()
     {
-        if (method_exists($this, 'expectException')) {
-            $this->expectException('Symfony\Component\Form\Exception\InvalidArgumentException');
-            $this->expectExceptionMessage('The child with the name "foo" does not exist.');
-        } else {
-            $this->setExpectedException('Symfony\Component\Form\Exception\InvalidArgumentException', 'The child with the name "foo" does not exist.');
-        }
+        $this->expectException('Symfony\Component\Form\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('The child with the name "foo" does not exist.');
 
         $this->builder->get('foo');
     }
@@ -188,7 +171,7 @@ class FormBuilderTest extends TestCase
         $this->factory->expects($this->once())
             ->method('createNamedBuilder')
             ->with($expectedName, $expectedType, null, $expectedOptions)
-            ->will($this->returnValue($this->getFormBuilder()));
+            ->willReturn($this->getFormBuilder());
 
         $this->builder->add($expectedName, $expectedType, $expectedOptions);
         $builder = $this->builder->get($expectedName);
@@ -204,7 +187,7 @@ class FormBuilderTest extends TestCase
         $this->factory->expects($this->once())
             ->method('createBuilderForProperty')
             ->with('stdClass', $expectedName, null, $expectedOptions)
-            ->will($this->returnValue($this->getFormBuilder()));
+            ->willReturn($this->getFormBuilder());
 
         $this->builder = new FormBuilder('name', 'stdClass', $this->dispatcher, $this->factory);
         $this->builder->add($expectedName, null, $expectedOptions);
@@ -246,7 +229,7 @@ class FormBuilderTest extends TestCase
 
         $mock->expects($this->any())
             ->method('getName')
-            ->will($this->returnValue($name));
+            ->willReturn($name);
 
         return $mock;
     }

@@ -24,7 +24,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class UploadedFileTest extends TestCase
 {
-    protected function setUp()
+    protected function setUp(): void
     {
         if (!ini_get('file_uploads')) {
             $this->markTestSkipped('file_uploads is disabled in php.ini');
@@ -94,6 +94,18 @@ class UploadedFileTest extends TestCase
         $this->assertEquals('jpeg', $file->guessClientExtension());
     }
 
+    public function testCaseSensitiveMimeType()
+    {
+        $file = new UploadedFile(
+            __DIR__.'/Fixtures/case-sensitive-mime-type.xlsm',
+            'test.xlsm',
+            'application/vnd.ms-excel.sheet.macroEnabled.12',
+            null
+        );
+
+        $this->assertEquals('xlsm', $file->guessClientExtension());
+    }
+
     public function testErrorIsOkByDefault()
     {
         $file = new UploadedFile(
@@ -130,11 +142,9 @@ class UploadedFileTest extends TestCase
         $this->assertEquals('gif', $file->getClientOriginalExtension());
     }
 
-    /**
-     * @expectedException \Symfony\Component\HttpFoundation\File\Exception\FileException
-     */
     public function testMoveLocalFileIsNotAllowed()
     {
+        $this->expectException('Symfony\Component\HttpFoundation\File\Exception\FileException');
         $file = new UploadedFile(
             __DIR__.'/Fixtures/test.gif',
             'original.gif',
@@ -142,7 +152,7 @@ class UploadedFileTest extends TestCase
             UPLOAD_ERR_OK
         );
 
-        $movedFile = $file->move(__DIR__.'/Fixtures/directory');
+        $file->move(__DIR__.'/Fixtures/directory');
     }
 
     public function failedUploadedFile()
@@ -249,40 +259,6 @@ class UploadedFileTest extends TestCase
         $this->assertEquals(filesize(__DIR__.'/Fixtures/test'), $file->getSize());
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation Passing a size as 4th argument to the constructor of "Symfony\Component\HttpFoundation\File\UploadedFile" is deprecated since Symfony 4.1.
-     */
-    public function testConstructDeprecatedSize()
-    {
-        $file = new UploadedFile(
-            __DIR__.'/Fixtures/test.gif',
-            'original.gif',
-            'image/gif',
-            filesize(__DIR__.'/Fixtures/test.gif'),
-            UPLOAD_ERR_OK,
-            false
-        );
-
-        $this->assertEquals(filesize(__DIR__.'/Fixtures/test.gif'), $file->getSize());
-    }
-
-    /**
-     * @group legacy
-     * @expectedDeprecation Passing a size as 4th argument to the constructor of "Symfony\Component\HttpFoundation\File\UploadedFile" is deprecated since Symfony 4.1.
-     */
-    public function testConstructDeprecatedSizeWhenPassingOnlyThe4Needed()
-    {
-        $file = new UploadedFile(
-            __DIR__.'/Fixtures/test.gif',
-            'original.gif',
-            'image/gif',
-            filesize(__DIR__.'/Fixtures/test.gif')
-        );
-
-        $this->assertEquals(filesize(__DIR__.'/Fixtures/test.gif'), $file->getSize());
-    }
-
     public function testGetExtension()
     {
         $file = new UploadedFile(
@@ -342,5 +318,19 @@ class UploadedFileTest extends TestCase
         );
 
         $this->assertFalse($file->isValid());
+    }
+
+    public function testGetMaxFilesize()
+    {
+        $size = UploadedFile::getMaxFilesize();
+
+        $this->assertIsInt($size);
+        $this->assertGreaterThan(0, $size);
+
+        if (0 === (int) ini_get('post_max_size') && 0 === (int) ini_get('upload_max_filesize')) {
+            $this->assertSame(PHP_INT_MAX, $size);
+        } else {
+            $this->assertLessThan(PHP_INT_MAX, $size);
+        }
     }
 }

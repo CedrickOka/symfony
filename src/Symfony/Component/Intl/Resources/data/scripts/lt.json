@@ -1,5 +1,5 @@
 {
-    "Version": "2.1.44.91",
+    "Version": "36",
     "Names": {
         "Afak": "Afaka",
         "Aghb": "Kaukazo Albanijos",
@@ -166,7 +166,6 @@
         "Zsye": "jaustukai",
         "Zsym": "simbolių",
         "Zxxx": "neparašyta",
-        "Zyyy": "bendri",
-        "Zzzz": "nežinomi rašmenys"
+        "Zyyy": "bendri"
     }
 }

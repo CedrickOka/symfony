@@ -50,15 +50,6 @@ class TwigExtractorTest extends TestCase
         }
     }
 
-    /**
-     * @group legacy
-     * @dataProvider getLegacyExtractData
-     */
-    public function testLegacyExtract($template, $messages)
-    {
-        $this->testExtract($template, $messages);
-    }
-
     public function getExtractData()
     {
         return [
@@ -81,29 +72,11 @@ class TwigExtractorTest extends TestCase
     }
 
     /**
-     * @group legacy
-     */
-    public function getLegacyExtractData()
-    {
-        return [
-            ['{{ "new key" | transchoice(1) }}', ['new key' => 'messages']],
-            ['{{ "new key" | transchoice(1) | upper }}', ['new key' => 'messages']],
-            ['{{ "new key" | transchoice(1, {}, "domain") }}', ['new key' => 'domain']],
-
-            // make sure 'trans_default_domain' tag is supported
-            ['{% trans_default_domain "domain" %}{{ "new key"|transchoice }}', ['new key' => 'domain']],
-
-            // make sure this works with twig's named arguments
-            ['{{ "new key" | transchoice(domain="domain", count=1) }}', ['new key' => 'domain']],
-        ];
-    }
-
-    /**
-     * @expectedException \Twig\Error\Error
      * @dataProvider resourcesWithSyntaxErrorsProvider
      */
     public function testExtractSyntaxError($resources)
     {
+        $this->expectException('Twig\Error\Error');
         $twig = new Environment($this->getMockBuilder('Twig\Loader\LoaderInterface')->getMock());
         $twig->addExtension(new TranslationExtension($this->getMockBuilder(TranslatorInterface::class)->getMock()));
 
@@ -112,21 +85,15 @@ class TwigExtractorTest extends TestCase
         try {
             $extractor->extract($resources, new MessageCatalogue('en'));
         } catch (Error $e) {
-            if (method_exists($e, 'getSourceContext')) {
-                $this->assertSame(\dirname(__DIR__).strtr('/Fixtures/extractor/syntax_error.twig', '/', \DIRECTORY_SEPARATOR), $e->getFile());
-                $this->assertSame(1, $e->getLine());
-                $this->assertSame('Unclosed "block".', $e->getMessage());
-            } else {
-                $this->expectExceptionMessageRegExp('/Unclosed "block" in ".*extractor(\\/|\\\\)syntax_error\\.twig" at line 1/');
-            }
+            $this->assertSame(\dirname(__DIR__).strtr('/Fixtures/extractor/syntax_error.twig', '/', \DIRECTORY_SEPARATOR), $e->getFile());
+            $this->assertSame(1, $e->getLine());
+            $this->assertSame('Unclosed "block".', $e->getMessage());
+
             throw $e;
         }
     }
 
-    /**
-     * @return array
-     */
-    public function resourcesWithSyntaxErrorsProvider()
+    public function resourcesWithSyntaxErrorsProvider(): array
     {
         return [
             [__DIR__.'/../Fixtures'],
@@ -157,10 +124,7 @@ class TwigExtractorTest extends TestCase
         $this->assertEquals('Hi!', $catalogue->get('Hi!', 'messages'));
     }
 
-    /**
-     * @return array
-     */
-    public function resourceProvider()
+    public function resourceProvider(): array
     {
         $directory = __DIR__.'/../Fixtures/extractor/';
 

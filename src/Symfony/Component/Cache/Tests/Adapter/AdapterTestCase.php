@@ -12,17 +12,20 @@
 namespace Symfony\Component\Cache\Tests\Adapter;
 
 use Cache\IntegrationTests\CachePoolTest;
+use PHPUnit\Framework\Assert;
+use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\Cache\PruneableInterface;
+use Symfony\Contracts\Cache\CallbackInterface;
 
 abstract class AdapterTestCase extends CachePoolTest
 {
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
-        if (!array_key_exists('testPrune', $this->skippedTests) && !$this->createCachePool() instanceof PruneableInterface) {
+        if (!\array_key_exists('testPrune', $this->skippedTests) && !$this->createCachePool() instanceof PruneableInterface) {
             $this->skippedTests['testPrune'] = 'Not a pruneable cache pool.';
         }
     }
@@ -57,6 +60,42 @@ abstract class AdapterTestCase extends CachePoolTest
             $this->assertSame($value, $item->get());
         }, INF));
         $this->assertFalse($isHit);
+
+        $this->assertSame($value, $cache->get('bar', new class($value) implements CallbackInterface {
+            private $value;
+
+            public function __construct(int $value)
+            {
+                $this->value = $value;
+            }
+
+            public function __invoke(CacheItemInterface $item, bool &$save)
+            {
+                Assert::assertSame('bar', $item->getKey());
+
+                return $this->value;
+            }
+        }));
+    }
+
+    public function testRecursiveGet()
+    {
+        if (isset($this->skippedTests[__FUNCTION__])) {
+            $this->markTestSkipped($this->skippedTests[__FUNCTION__]);
+        }
+
+        $cache = $this->createCachePool(0, __FUNCTION__);
+
+        $v = $cache->get('k1', function () use (&$counter, $cache) {
+            $cache->get('k2', function () use (&$counter) { return ++$counter; });
+            $v = $cache->get('k2', function () use (&$counter) { return ++$counter; }); // ensure the callback is called once
+
+            return $v;
+        });
+
+        $this->assertSame(1, $counter);
+        $this->assertSame(1, $v);
+        $this->assertSame(1, $cache->get('k2', function () { return 2; }));
     }
 
     public function testGetMetadata()
@@ -70,7 +109,7 @@ abstract class AdapterTestCase extends CachePoolTest
         $cache->deleteItem('foo');
         $cache->get('foo', function ($item) {
             $item->expiresAfter(10);
-            sleep(1);
+            usleep(999000);
 
             return 'bar';
         });
@@ -81,7 +120,7 @@ abstract class AdapterTestCase extends CachePoolTest
             CacheItem::METADATA_EXPIRY => 9.5 + time(),
             CacheItem::METADATA_CTIME => 1000,
         ];
-        $this->assertEquals($expected, $item->getMetadata(), 'Item metadata should embed expiry and ctime.', .6);
+        $this->assertEqualsWithDelta($expected, $item->getMetadata(), .6, 'Item metadata should embed expiry and ctime.');
     }
 
     public function testDefaultLifeTime()
@@ -213,16 +252,31 @@ abstract class AdapterTestCase extends CachePoolTest
         $this->assertFalse($this->isPruned($cache, 'foo'));
         $this->assertTrue($this->isPruned($cache, 'qux'));
     }
+
+    public function testClearPrefix()
+    {
+        if (isset($this->skippedTests[__FUNCTION__])) {
+            $this->markTestSkipped($this->skippedTests[__FUNCTION__]);
+        }
+
+        $cache = $this->createCachePool(0, __FUNCTION__);
+        $cache->clear();
+
+        $item = $cache->getItem('foobar');
+        $cache->save($item->set(1));
+
+        $item = $cache->getItem('barfoo');
+        $cache->save($item->set(2));
+
+        $cache->clear('foo');
+        $this->assertFalse($cache->hasItem('foobar'));
+        $this->assertTrue($cache->hasItem('barfoo'));
+    }
 }
 
-class NotUnserializable implements \Serializable
+class NotUnserializable
 {
-    public function serialize()
-    {
-        return serialize(123);
-    }
-
-    public function unserialize($ser)
+    public function __wakeup()
     {
         throw new \Exception(__CLASS__);
     }

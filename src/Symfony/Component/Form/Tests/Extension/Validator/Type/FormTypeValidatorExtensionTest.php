@@ -11,7 +11,6 @@
 
 namespace Symfony\Component\Form\Tests\Extension\Validator\Type;
 
-use Symfony\Component\Form\Extension\Validator\Type\FormTypeValidatorExtension;
 use Symfony\Component\Form\Extension\Validator\ValidatorExtension;
 use Symfony\Component\Form\Forms;
 use Symfony\Component\Form\Test\Traits\ValidatorExtensionTrait;
@@ -43,7 +42,7 @@ class FormTypeValidatorExtensionTest extends BaseValidatorExtensionTest
         $this->validator->expects($this->once())
             ->method('validate')
             ->with($this->equalTo($form))
-            ->will($this->returnValue(new ConstraintViolationList()));
+            ->willReturn(new ConstraintViolationList());
 
         // specific data is irrelevant
         $form->submit([]);
@@ -56,14 +55,6 @@ class FormTypeValidatorExtensionTest extends BaseValidatorExtensionTest
         $this->assertSame([$valid], $form->getConfig()->getOption('constraints'));
     }
 
-    public function testValidatorInterface()
-    {
-        $validator = $this->getMockBuilder('Symfony\Component\Validator\Validator\ValidatorInterface')->getMock();
-
-        $formTypeValidatorExtension = new FormTypeValidatorExtension($validator);
-        $this->assertAttributeSame($validator, 'validator', $formTypeValidatorExtension);
-    }
-
     public function testGroupSequenceWithConstraintsOption()
     {
         $form = Forms::createFormFactoryBuilder()
@@ -72,7 +63,7 @@ class FormTypeValidatorExtensionTest extends BaseValidatorExtensionTest
             ->create(FormTypeTest::TESTED_TYPE, null, (['validation_groups' => new GroupSequence(['First', 'Second'])]))
             ->add('field', TextTypeTest::TESTED_TYPE, [
                 'constraints' => [
-                    new Length(['min' => 10, 'groups' => ['First']]),
+                    new Length(['min' => 10, 'allowEmptyString' => true, 'groups' => ['First']]),
                     new Email(['groups' => ['Second']]),
                 ],
             ])

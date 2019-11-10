@@ -18,6 +18,7 @@ use Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactoryInterface;
 use Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader;
 use Symfony\Component\Serializer\NameConverter\MetadataAwareNameConverter;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
+use Symfony\Component\Serializer\Tests\Fixtures\OtherSerializedNameDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\SerializedNameDummy;
 
 /**
@@ -96,21 +97,68 @@ final class MetadataAwareNameConverterTest extends TestCase
         $this->assertEquals($expected, $nameConverter->denormalize($propertyName, SerializedNameDummy::class));
     }
 
-    public function attributeProvider()
+    public function attributeProvider(): array
     {
         return [
             ['foo', 'baz'],
             ['bar', 'qux'],
             ['quux', 'quux'],
+            [0, 0],
         ];
     }
 
-    public function fallbackAttributeProvider()
+    public function fallbackAttributeProvider(): array
     {
         return [
             ['foo', 'baz'],
             ['bar', 'qux'],
             ['quux', 'QUUX'],
+            [0, 0],
         ];
+    }
+
+    /**
+     * @dataProvider attributeAndContextProvider
+     */
+    public function testNormalizeWithGroups($propertyName, $expected, $context = [])
+    {
+        $classMetadataFactory = new ClassMetadataFactory(new AnnotationLoader(new AnnotationReader()));
+
+        $nameConverter = new MetadataAwareNameConverter($classMetadataFactory);
+
+        $this->assertEquals($expected, $nameConverter->normalize($propertyName, OtherSerializedNameDummy::class, null, $context));
+    }
+
+    /**
+     * @dataProvider attributeAndContextProvider
+     */
+    public function testDenormalizeWithGroups($expected, $propertyName, $context = [])
+    {
+        $classMetadataFactory = new ClassMetadataFactory(new AnnotationLoader(new AnnotationReader()));
+
+        $nameConverter = new MetadataAwareNameConverter($classMetadataFactory);
+
+        $this->assertEquals($expected, $nameConverter->denormalize($propertyName, OtherSerializedNameDummy::class, null, $context));
+    }
+
+    public function attributeAndContextProvider()
+    {
+        return [
+            ['buz', 'buz', ['groups' => ['a']]],
+            ['buzForExport', 'buz', ['groups' => ['b']]],
+            ['buz', 'buz', ['groups' => ['c']]],
+            ['buz', 'buz', []],
+        ];
+    }
+
+    public function testDenormalizeWithCacheContext()
+    {
+        $classMetadataFactory = new ClassMetadataFactory(new AnnotationLoader(new AnnotationReader()));
+
+        $nameConverter = new MetadataAwareNameConverter($classMetadataFactory);
+
+        $this->assertEquals('buz', $nameConverter->denormalize('buz', OtherSerializedNameDummy::class, null, ['groups' => ['a']]));
+        $this->assertEquals('buzForExport', $nameConverter->denormalize('buz', OtherSerializedNameDummy::class, null, ['groups' => ['b']]));
+        $this->assertEquals('buz', $nameConverter->denormalize('buz', OtherSerializedNameDummy::class));
     }
 }

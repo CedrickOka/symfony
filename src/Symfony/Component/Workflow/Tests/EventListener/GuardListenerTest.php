@@ -5,15 +5,18 @@ namespace Symfony\Component\Workflow\Tests\EventListener;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authentication\AuthenticationTrustResolverInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
-use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
-use Symfony\Component\Security\Core\Role\Role;
+use Symfony\Component\Security\Core\Role\RoleHierarchy;
+use Symfony\Component\Validator\ConstraintViolation;
+use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Workflow\Event\GuardEvent;
 use Symfony\Component\Workflow\EventListener\ExpressionLanguage;
 use Symfony\Component\Workflow\EventListener\GuardExpression;
 use Symfony\Component\Workflow\EventListener\GuardListener;
 use Symfony\Component\Workflow\Marking;
+use Symfony\Component\Workflow\Tests\Subject;
 use Symfony\Component\Workflow\Transition;
 use Symfony\Component\Workflow\WorkflowInterface;
 
@@ -24,7 +27,7 @@ class GuardListenerTest extends TestCase
     private $listener;
     private $configuration;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->configuration = [
             'test_is_granted' => 'is_granted("something")',
@@ -35,17 +38,17 @@ class GuardListenerTest extends TestCase
             ],
         ];
         $expressionLanguage = new ExpressionLanguage();
-        $token = $this->getMockBuilder(TokenInterface::class)->getMock();
-        $token->expects($this->any())->method('getRoles')->willReturn([new Role('ROLE_USER')]);
+        $token = new UsernamePasswordToken('username', 'credentials', 'provider', ['ROLE_USER']);
         $tokenStorage = $this->getMockBuilder(TokenStorageInterface::class)->getMock();
         $tokenStorage->expects($this->any())->method('getToken')->willReturn($token);
         $this->authenticationChecker = $this->getMockBuilder(AuthorizationCheckerInterface::class)->getMock();
         $trustResolver = $this->getMockBuilder(AuthenticationTrustResolverInterface::class)->getMock();
         $this->validator = $this->getMockBuilder(ValidatorInterface::class)->getMock();
-        $this->listener = new GuardListener($this->configuration, $expressionLanguage, $tokenStorage, $this->authenticationChecker, $trustResolver, null, $this->validator);
+        $roleHierarchy = new RoleHierarchy([]);
+        $this->listener = new GuardListener($this->configuration, $expressionLanguage, $tokenStorage, $this->authenticationChecker, $trustResolver, $roleHierarchy, $this->validator);
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         $this->authenticationChecker = null;
         $this->validator = null;
@@ -132,13 +135,12 @@ class GuardListenerTest extends TestCase
 
     private function createEvent(Transition $transition = null)
     {
-        $subject = new \stdClass();
-        $subject->marking = new Marking();
+        $subject = new Subject();
         $transition = $transition ?: new Transition('name', 'from', 'to');
 
         $workflow = $this->getMockBuilder(WorkflowInterface::class)->getMock();
 
-        return new GuardEvent($subject, $subject->marking, $transition, $workflow);
+        return new GuardEvent($subject, new Marking($subject->getMarking() ?? []), $transition, $workflow);
     }
 
     private function configureAuthenticationChecker($isUsed, $granted = true)
@@ -173,7 +175,7 @@ class GuardListenerTest extends TestCase
         $this->validator
             ->expects($this->once())
             ->method('validate')
-            ->willReturn($valid ? [] : ['a violation'])
+            ->willReturn(new ConstraintViolationList($valid ? [] : [new ConstraintViolation('a violation', null, [], '', null, '')]))
         ;
     }
 }

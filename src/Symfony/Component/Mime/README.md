@@ -1,8 +1,7 @@
 MIME Component
 ==============
 
-The MIME component allows manipulating MIME types.
-
+The MIME component allows manipulating MIME messages.
 
 Resources
 ---------

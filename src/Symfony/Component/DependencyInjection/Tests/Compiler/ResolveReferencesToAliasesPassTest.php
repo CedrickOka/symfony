@@ -51,11 +51,9 @@ class ResolveReferencesToAliasesPassTest extends TestCase
         $this->assertEquals('foo', (string) $arguments[0]);
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\ServiceCircularReferenceException
-     */
     public function testAliasCircularReference()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\ServiceCircularReferenceException');
         $container = new ContainerBuilder();
         $container->setAlias('bar', 'foo');
         $container->setAlias('foo', 'bar');
@@ -85,7 +83,7 @@ class ResolveReferencesToAliasesPassTest extends TestCase
 
     /**
      * @group legacy
-     * @expectedDeprecation The "deprecated_foo_alias" service alias is deprecated. You should stop using it, as it will soon be removed.
+     * @expectedDeprecation The "deprecated_foo_alias" service alias is deprecated. You should stop using it, as it will be removed in the future. It is being referenced by the "alias" alias.
      */
     public function testDeprecationNoticeWhenReferencedByAlias()
     {
@@ -105,7 +103,7 @@ class ResolveReferencesToAliasesPassTest extends TestCase
 
     /**
      * @group legacy
-     * @expectedDeprecation The "foo_aliased" service alias is deprecated. You should stop using it, as it will soon be removed.
+     * @expectedDeprecation The "foo_aliased" service alias is deprecated. You should stop using it, as it will be removed in the future. It is being referenced by the "definition" service.
      */
     public function testDeprecationNoticeWhenReferencedByDefinition()
     {

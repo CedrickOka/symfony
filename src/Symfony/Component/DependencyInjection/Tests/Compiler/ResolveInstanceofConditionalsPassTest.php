@@ -173,12 +173,10 @@ class ResolveInstanceofConditionalsPassTest extends TestCase
         $this->assertFalse($def->isAutowired());
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
-     * @expectedExceptionMessage "App\FakeInterface" is set as an "instanceof" conditional, but it does not exist.
-     */
     public function testBadInterfaceThrowsException()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\RuntimeException');
+        $this->expectExceptionMessage('"App\FakeInterface" is set as an "instanceof" conditional, but it does not exist.');
         $container = new ContainerBuilder();
         $def = $container->register('normal_service', self::class);
         $def->setInstanceofConditionals([
@@ -232,12 +230,10 @@ class ResolveInstanceofConditionalsPassTest extends TestCase
         $this->assertEquals($expected, $container->findDefinition('foo')->getMethodCalls());
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     * @expectedExceptionMessage Autoconfigured instanceof for type "PHPUnit\Framework\TestCase" defines arguments but these are not supported and should be removed.
-     */
     public function testProcessThrowsExceptionForArguments()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\InvalidArgumentException');
+        $this->expectExceptionMessageRegExp('/Autoconfigured instanceof for type "PHPUnit[\\\\_]Framework[\\\\_]TestCase" defines arguments but these are not supported and should be removed\./');
         $container = new ContainerBuilder();
         $container->registerForAutoconfiguration(parent::class)
             ->addArgument('bar');
@@ -306,5 +302,27 @@ class ResolveInstanceofConditionalsPassTest extends TestCase
         $this->assertSame(['$toto'], array_keys($bindings));
         $this->assertInstanceOf(BoundArgument::class, $bindings['$toto']);
         $this->assertSame(123, $bindings['$toto']->getValues()[0]);
+    }
+
+    public function testDecoratorsAreNotAutomaticallyTagged()
+    {
+        $container = new ContainerBuilder();
+
+        $decorator = $container->register('decorator', self::class);
+        $decorator->setDecoratedService('decorated');
+        $decorator->setInstanceofConditionals([
+            parent::class => (new ChildDefinition(''))->addTag('tag'),
+        ]);
+        $decorator->setAutoconfigured(true);
+        $decorator->addTag('manual');
+
+        $container->registerForAutoconfiguration(parent::class)
+            ->addTag('tag')
+        ;
+
+        (new ResolveInstanceofConditionalsPass())->process($container);
+        (new ResolveChildDefinitionsPass())->process($container);
+
+        $this->assertSame(['manual' => [[]]], $container->getDefinition('decorator')->getTags());
     }
 }

@@ -39,10 +39,8 @@ class FormErrorIterator implements \RecursiveIterator, \SeekableIterator, \Array
     private $errors;
 
     /**
-     * Creates a new iterator.
-     *
-     * @param FormInterface                   $form   The erroneous form
-     * @param FormError[]|FormErrorIterator[] $errors The form errors
+     * @param FormError[]|self[] $errors An array of form errors and instances
+     *                                   of FormErrorIterator
      *
      * @throws InvalidArgumentException If the errors are invalid
      */
@@ -71,7 +69,7 @@ class FormErrorIterator implements \RecursiveIterator, \SeekableIterator, \Array
             if ($error instanceof FormError) {
                 $string .= 'ERROR: '.$error->getMessage()."\n";
             } else {
-                /* @var $error FormErrorIterator */
+                /* @var self $error */
                 $string .= $error->form->getName().":\n";
                 $string .= self::indent((string) $error);
             }
@@ -93,8 +91,7 @@ class FormErrorIterator implements \RecursiveIterator, \SeekableIterator, \Array
     /**
      * Returns the current element of the iterator.
      *
-     * @return FormError|FormErrorIterator an error or an iterator containing
-     *                                     nested errors
+     * @return FormError|self An error or an iterator containing nested errors
      */
     public function current()
     {
@@ -274,12 +271,8 @@ class FormErrorIterator implements \RecursiveIterator, \SeekableIterator, \Array
 
     /**
      * Utility function for indenting multi-line strings.
-     *
-     * @param string $string The string
-     *
-     * @return string The indented string
      */
-    private static function indent($string)
+    private static function indent(string $string): string
     {
         return rtrim(self::INDENTATION.str_replace("\n", "\n".self::INDENTATION, $string), ' ');
     }

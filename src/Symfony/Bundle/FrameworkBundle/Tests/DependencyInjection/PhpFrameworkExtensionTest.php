@@ -23,11 +23,9 @@ class PhpFrameworkExtensionTest extends FrameworkExtensionTest
         $loader->load($file.'.php');
     }
 
-    /**
-     * @expectedException \LogicException
-     */
     public function testAssetsCannotHavePathAndUrl()
     {
+        $this->expectException('LogicException');
         $this->createContainerFromClosure(function ($container) {
             $container->loadFromExtension('framework', [
                 'assets' => [
@@ -38,11 +36,9 @@ class PhpFrameworkExtensionTest extends FrameworkExtensionTest
         });
     }
 
-    /**
-     * @expectedException \LogicException
-     */
     public function testAssetPackageCannotHavePathAndUrl()
     {
+        $this->expectException('LogicException');
         $this->createContainerFromClosure(function ($container) {
             $container->loadFromExtension('framework', [
                 'assets' => [
@@ -50,6 +46,35 @@ class PhpFrameworkExtensionTest extends FrameworkExtensionTest
                         'impossible' => [
                             'base_urls' => 'http://cdn.example.com',
                             'base_path' => '/foo',
+                        ],
+                    ],
+                ],
+            ]);
+        });
+    }
+
+    public function testWorkflowValidationStateMachine()
+    {
+        $this->expectException('Symfony\Component\Workflow\Exception\InvalidDefinitionException');
+        $this->expectExceptionMessage('A transition from a place/state must have an unique name. Multiple transitions named "a_to_b" from place/state "a" were found on StateMachine "article".');
+        $this->createContainerFromClosure(function ($container) {
+            $container->loadFromExtension('framework', [
+                'workflows' => [
+                    'article' => [
+                        'type' => 'state_machine',
+                        'supports' => [
+                            __CLASS__,
+                        ],
+                        'places' => [
+                            'a',
+                            'b',
+                            'c',
+                        ],
+                        'transitions' => [
+                            'a_to_b' => [
+                                'from' => ['a'],
+                                'to' => ['b', 'c'],
+                            ],
                         ],
                     ],
                 ],

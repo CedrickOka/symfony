@@ -16,6 +16,7 @@ use Symfony\Bridge\Twig\Command\DebugCommand;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
 use Twig\Environment;
+use Twig\Loader\ChainLoader;
 use Twig\Loader\FilesystemLoader;
 
 class DebugCommandTest extends TestCase
@@ -26,7 +27,7 @@ class DebugCommandTest extends TestCase
         $ret = $tester->execute([], ['decorated' => false]);
 
         $this->assertEquals(0, $ret, 'Returns 0 in case of success');
-        $this->assertContains('Functions', trim($tester->getDisplay()));
+        $this->assertStringContainsString('Functions', trim($tester->getDisplay()));
     }
 
     public function testFilterAndJsonFormatOptions()
@@ -62,38 +63,10 @@ class DebugCommandTest extends TestCase
         $this->assertEquals($expected, json_decode($tester->getDisplay(true), true));
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation Templates directory "%sResources/BarBundle/views" is deprecated since Symfony 4.2, use "%stemplates/bundles/BarBundle" instead.
-     */
-    public function testDeprecationForWrongBundleOverridingInLegacyPath()
-    {
-        $bundleMetadata = [
-            'TwigBundle' => 'vendor/twig-bundle/',
-            'WebProfilerBundle' => 'vendor/web-profiler-bundle/',
-        ];
-        $defaultPath = \dirname(__DIR__).\DIRECTORY_SEPARATOR.'Fixtures'.\DIRECTORY_SEPARATOR.'templates';
-        $rootDir = \dirname(__DIR__).\DIRECTORY_SEPARATOR.'Fixtures';
-
-        $tester = $this->createCommandTester([], $bundleMetadata, $defaultPath, $rootDir);
-        $ret = $tester->execute(['--filter' => 'unknown', '--format' => 'json'], ['decorated' => false]);
-
-        $expected = ['warnings' => [
-            'Path "Resources/BarBundle" not matching any bundle found',
-            'Path "templates/bundles/UnknownBundle" not matching any bundle found',
-            'Path "templates/bundles/WebProfileBundle" not matching any bundle found, did you mean "WebProfilerBundle"?',
-        ]];
-
-        $this->assertEquals(0, $ret, 'Returns 0 in case of success');
-        $this->assertEquals($expected, json_decode($tester->getDisplay(true), true));
-    }
-
-    /**
-     * @expectedException \Symfony\Component\Console\Exception\InvalidArgumentException
-     * @expectedExceptionMessage Malformed namespaced template name "@foo" (expecting "@namespace/template_name").
-     */
     public function testMalformedTemplateName()
     {
+        $this->expectException('Symfony\Component\Console\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('Malformed namespaced template name "@foo" (expecting "@namespace/template_name").');
         $this->createCommandTester()->execute(['name' => '@foo']);
     }
 
@@ -279,7 +252,47 @@ TXT
         ];
     }
 
-    private function createCommandTester(array $paths = [], array $bundleMetadata = [], string $defaultPath = null, string $rootDir = null): CommandTester
+    public function testDebugTemplateNameWithChainLoader()
+    {
+        $tester = $this->createCommandTester(['templates/' => null], [], null, true);
+        $ret = $tester->execute(['name' => 'base.html.twig'], ['decorated' => false]);
+
+        $this->assertEquals(0, $ret, 'Returns 0 in case of success');
+        $this->assertStringContainsString('[OK]', $tester->getDisplay());
+    }
+
+    public function testWithGlobals()
+    {
+        $message = '<error>foo</error>';
+        $tester = $this->createCommandTester([], [], null, false, ['message' => $message]);
+        $tester->execute([], ['decorated' => true]);
+        $display = $tester->getDisplay();
+        $this->assertStringContainsString(json_encode($message), $display);
+    }
+
+    public function testWithGlobalsJson()
+    {
+        $globals = ['message' => '<error>foo</error>'];
+        $tester = $this->createCommandTester([], [], null, false, $globals);
+        $tester->execute(['--format' => 'json'], ['decorated' => true]);
+        $display = $tester->getDisplay();
+        $display = json_decode($display, true);
+        $this->assertSame($globals, $display['globals']);
+    }
+
+    public function testWithFilter()
+    {
+        $tester = $this->createCommandTester();
+        $tester->execute(['--format' => 'json'], ['decorated' => false]);
+        $display = $tester->getDisplay();
+        $display1 = json_decode($display, true);
+        $tester->execute(['--filter' => 'date', '--format' => 'json'], ['decorated' => false]);
+        $display = $tester->getDisplay();
+        $display2 = json_decode($display, true);
+        $this->assertNotSame($display1, $display2);
+    }
+
+    private function createCommandTester(array $paths = [], array $bundleMetadata = [], string $defaultPath = null, bool $useChainLoader = false, array $globals = []): CommandTester
     {
         $projectDir = \dirname(__DIR__).\DIRECTORY_SEPARATOR.'Fixtures';
         $loader = new FilesystemLoader([], $projectDir);
@@ -291,8 +304,17 @@ TXT
             }
         }
 
+        if ($useChainLoader) {
+            $loader = new ChainLoader([$loader]);
+        }
+
+        $environment = new Environment($loader);
+        foreach ($globals as $name => $value) {
+            $environment->addGlobal($name, $value);
+        }
+
         $application = new Application();
-        $application->add(new DebugCommand(new Environment($loader), $projectDir, $bundleMetadata, $defaultPath, $rootDir));
+        $application->add(new DebugCommand($environment, $projectDir, $bundleMetadata, $defaultPath, null));
         $command = $application->find('debug:twig');
 
         return new CommandTester($command);

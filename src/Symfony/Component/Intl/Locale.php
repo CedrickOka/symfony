@@ -60,17 +60,15 @@ final class Locale extends \Locale
      * the default fallback locale configured with {@link setDefaultFallback()}.
      * The default fallback locale has no fallback.
      *
-     * @param string $locale The ICU locale code to find the fallback for
-     *
      * @return string|null The ICU locale code of the fallback locale, or null
      *                     if no fallback exists
      */
-    public static function getFallback($locale): ?string
+    public static function getFallback(string $locale): ?string
     {
         if (\function_exists('locale_parse')) {
             $localeSubTags = locale_parse($locale);
             if (1 === \count($localeSubTags)) {
-                if (self::$defaultFallback === $localeSubTags['language']) {
+                if ('root' !== self::$defaultFallback && self::$defaultFallback === $localeSubTags['language']) {
                     return 'root';
                 }
 
@@ -85,7 +83,9 @@ final class Locale extends \Locale
 
             array_pop($localeSubTags);
 
-            return locale_compose($localeSubTags);
+            $fallback = locale_compose($localeSubTags);
+
+            return false !== $fallback ? $fallback : null;
         }
 
         if (false !== $pos = strrpos($locale, '_')) {
@@ -96,17 +96,13 @@ final class Locale extends \Locale
             return substr($locale, 0, $pos);
         }
 
-        if (self::$defaultFallback === $locale) {
+        if ('root' !== self::$defaultFallback && self::$defaultFallback === $locale) {
             return 'root';
         }
 
         // Don't return default fallback for "root", "meta" or others
         // Normal locales have two or three letters
-        if (\strlen($locale) < 4) {
-            return self::$defaultFallback;
-        }
-
-        return null;
+        return \strlen($locale) < 4 ? self::$defaultFallback : null;
     }
 
     /**

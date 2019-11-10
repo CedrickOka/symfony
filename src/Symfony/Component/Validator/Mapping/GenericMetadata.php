@@ -185,11 +185,9 @@ class GenericMetadata implements MetadataInterface
      *
      * Aware of the global group (* group).
      */
-    public function findConstraints($group)
+    public function findConstraints(string $group)
     {
-        return isset($this->constraintsByGroup[$group])
-            ? $this->constraintsByGroup[$group]
-            : [];
+        return $this->constraintsByGroup[$group] ?? [];
     }
 
     /**

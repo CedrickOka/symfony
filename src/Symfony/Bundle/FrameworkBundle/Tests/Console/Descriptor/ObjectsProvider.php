@@ -53,7 +53,8 @@ class ObjectsProvider
                 ['opt1' => 'val1', 'opt2' => 'val2'],
                 'localhost',
                 ['http', 'https'],
-                ['put', 'post']
+                ['put', 'post'],
+                "context.getMethod() in ['GET', 'HEAD', 'POST']"
             ),
         ];
     }
@@ -139,6 +140,51 @@ class ObjectsProvider
                 ->addTag('tag2')
                 ->addMethodCall('setMailer', [new Reference('mailer')])
                 ->setFactory([new Reference('factory.service'), 'get']),
+            'definition_without_class' => new Definition(),
+        ];
+    }
+
+    public static function getContainerBuildersWithPriorityTags()
+    {
+        $builder = new ContainerBuilder();
+        $builder->setDefinitions(self::getContainerDefinitionsWithPriorityTags());
+
+        return ['builder' => $builder];
+    }
+
+    public static function getContainerDefinitionsWithPriorityTags()
+    {
+        $definition1 = new Definition('Full\\Qualified\\Class1');
+        $definition2 = new Definition('Full\\Qualified\\Class2');
+        $definition3 = new Definition('Full\\Qualified\\Class3');
+
+        return [
+            'definition_1' => $definition1
+                ->setPublic(true)
+                ->setSynthetic(true)
+                ->setFile('/path/to/file')
+                ->setLazy(false)
+                ->setAbstract(false)
+                ->addTag('tag1', ['attr1' => 'val1', 'priority' => 30])
+                ->addTag('tag1', ['attr2' => 'val2'])
+                ->addTag('tag2')
+                ->addMethodCall('setMailer', [new Reference('mailer')])
+                ->setFactory([new Reference('factory.service'), 'get']),
+            'definition_2' => $definition2
+                ->setPublic(true)
+                ->setSynthetic(true)
+                ->setFile('/path/to/file')
+                ->setLazy(false)
+                ->setAbstract(false)
+                ->addTag('tag1', ['attr1' => 'val1', 'attr2' => 'val2', 'priority' => -20]),
+            'definition_3' => $definition3
+                ->setPublic(true)
+                ->setSynthetic(true)
+                ->setFile('/path/to/file')
+                ->setLazy(false)
+                ->setAbstract(false)
+                ->addTag('tag1', ['attr1' => 'val1', 'attr2' => 'val2', 'priority' => 0])
+                ->addTag('tag1', ['attr3' => 'val3', 'priority' => 40]),
         ];
     }
 
@@ -200,7 +246,7 @@ class ExtendedCallableClass extends CallableClass
 
 class RouteStub extends Route
 {
-    public function compile()
+    public function compile(): CompiledRoute
     {
         return new CompiledRoute('', '#PATH_REGEX#', [], [], '#HOST_REGEX#');
     }

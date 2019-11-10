@@ -11,7 +11,7 @@
 
 namespace Symfony\Component\Validator\Constraints;
 
-use Symfony\Component\Intl\Intl;
+use Symfony\Component\Intl\Countries;
 use Symfony\Component\PropertyAccess\Exception\NoSuchPropertyException;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
@@ -104,15 +104,7 @@ class BicValidator extends ConstraintValidator
             return;
         }
 
-        // @deprecated since Symfony 4.2, will throw in 5.0
-        if (class_exists(Intl::class)) {
-            $validCountryCode = isset(Intl::getRegionBundle()->getCountryNames()[substr($canonicalize, 4, 2)]);
-        } else {
-            $validCountryCode = ctype_alpha(substr($canonicalize, 4, 2));
-            // throw new LogicException('The "symfony/intl" component is required to use the Bic constraint.');
-        }
-
-        if (!$validCountryCode) {
+        if (!Countries::exists(substr($canonicalize, 4, 2))) {
             $this->context->buildViolation($constraint->message)
                 ->setParameter('{{ value }}', $this->formatValue($value))
                 ->setCode(Bic::INVALID_COUNTRY_CODE_ERROR)

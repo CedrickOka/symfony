@@ -24,9 +24,7 @@ class RememberMeToken extends AbstractToken
     private $providerKey;
 
     /**
-     * @param UserInterface $user
-     * @param string        $providerKey
-     * @param string        $secret      A secret used to make sure the token is created by the app and not by a malicious client
+     * @param string $secret A secret used to make sure the token is created by the app and not by a malicious client
      *
      * @throws \InvalidArgumentException
      */
@@ -52,7 +50,7 @@ class RememberMeToken extends AbstractToken
     /**
      * {@inheritdoc}
      */
-    public function setAuthenticated($authenticated)
+    public function setAuthenticated(bool $authenticated)
     {
         if ($authenticated) {
             throw new \LogicException('You cannot set this token to authenticated after creation.');
@@ -92,21 +90,17 @@ class RememberMeToken extends AbstractToken
     /**
      * {@inheritdoc}
      */
-    public function serialize()
+    public function __serialize(): array
     {
-        return serialize([
-            $this->secret,
-            $this->providerKey,
-            parent::serialize(),
-        ]);
+        return [$this->secret, $this->providerKey, parent::__serialize()];
     }
 
     /**
      * {@inheritdoc}
      */
-    public function unserialize($serialized)
+    public function __unserialize(array $data): void
     {
-        list($this->secret, $this->providerKey, $parentStr) = unserialize($serialized);
-        parent::unserialize($parentStr);
+        [$this->secret, $this->providerKey, $parentData] = $data;
+        parent::__unserialize($parentData);
     }
 }

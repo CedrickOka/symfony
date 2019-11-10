@@ -7,17 +7,17 @@ use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\LogicException;
 use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 /**
  * This class has been auto-generated
  * by the Symfony Dependency Injection Component.
  *
- * @final since Symfony 3.3
+ * @final
  */
 class ProjectServiceContainer extends Container
 {
-    private $parameters;
-    private $targetDirs = [];
+    private $parameters = [];
 
     public function __construct()
     {
@@ -30,17 +30,17 @@ class ProjectServiceContainer extends Container
         $this->aliases = [];
     }
 
-    public function compile()
+    public function compile(): void
     {
         throw new LogicException('You cannot compile a dumped container that was already compiled.');
     }
 
-    public function isCompiled()
+    public function isCompiled(): bool
     {
         return true;
     }
 
-    public function getRemovedIds()
+    public function getRemovedIds(): array
     {
         return [
             'Psr\\Container\\ContainerInterface' => true,
@@ -55,7 +55,7 @@ class ProjectServiceContainer extends Container
      */
     protected function getFooService()
     {
-        return $this->services['Bar\Foo'] = new \Bar\Foo();
+        return $this->services['Bar\\Foo'] = new \Bar\Foo();
     }
 
     /**
@@ -65,6 +65,6 @@ class ProjectServiceContainer extends Container
      */
     protected function getFoo2Service()
     {
-        return $this->services['Foo\Foo'] = new \Foo\Foo();
+        return $this->services['Foo\\Foo'] = new \Foo\Foo();
     }
 }

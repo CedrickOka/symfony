@@ -13,16 +13,16 @@ namespace Symfony\Component\Lock\Store;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DBALException;
+use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Schema\Schema;
 use Symfony\Component\Lock\Exception\InvalidArgumentException;
+use Symfony\Component\Lock\Exception\InvalidTtlException;
 use Symfony\Component\Lock\Exception\LockConflictedException;
-use Symfony\Component\Lock\Exception\LockExpiredException;
-use Symfony\Component\Lock\Exception\NotSupportedException;
 use Symfony\Component\Lock\Key;
-use Symfony\Component\Lock\StoreInterface;
+use Symfony\Component\Lock\PersistingStoreInterface;
 
 /**
- * PdoStore is a StoreInterface implementation using a PDO connection.
+ * PdoStore is a PersistingStoreInterface implementation using a PDO connection.
  *
  * Lock metadata are stored in a table. You can use createTable() to initialize
  * a correctly defined table.
@@ -34,8 +34,10 @@ use Symfony\Component\Lock\StoreInterface;
  *
  * @author Jérémy Derussé <jeremy@derusse.com>
  */
-class PdoStore implements StoreInterface
+class PdoStore implements PersistingStoreInterface
 {
+    use ExpiringStoreTrait;
+
     private $conn;
     private $dsn;
     private $driver;
@@ -79,7 +81,7 @@ class PdoStore implements StoreInterface
             throw new InvalidArgumentException(sprintf('"%s" requires gcProbability between 0 and 1, "%f" given.', __METHOD__, $gcProbability));
         }
         if ($initialTtl < 1) {
-            throw new InvalidArgumentException(sprintf('%s() expects a strictly positive TTL, "%d" given.', __METHOD__, $initialTtl));
+            throw new InvalidTtlException(sprintf('%s() expects a strictly positive TTL, "%d" given.', __METHOD__, $initialTtl));
         }
 
         if ($connOrDsn instanceof \PDO) {
@@ -123,11 +125,6 @@ class PdoStore implements StoreInterface
 
         try {
             $stmt->execute();
-            if ($key->isExpired()) {
-                throw new LockExpiredException(sprintf('Failed to put off the expiration of the "%s" lock within the specified time.', $key));
-            }
-
-            return;
         } catch (DBALException $e) {
             // the lock is already acquired. It could be us. Let's try to put off.
             $this->putOffExpiration($key, $this->initialTtl);
@@ -136,30 +133,20 @@ class PdoStore implements StoreInterface
             $this->putOffExpiration($key, $this->initialTtl);
         }
 
-        if ($key->isExpired()) {
-            throw new LockExpiredException(sprintf('Failed to store the "%s" lock.', $key));
-        }
-
         if ($this->gcProbability > 0 && (1.0 === $this->gcProbability || (random_int(0, PHP_INT_MAX) / PHP_INT_MAX) <= $this->gcProbability)) {
             $this->prune();
         }
+
+        $this->checkNotExpired($key);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function waitAndSave(Key $key)
-    {
-        throw new NotSupportedException(sprintf('The store "%s" does not supports blocking locks.', __METHOD__));
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function putOffExpiration(Key $key, $ttl)
+    public function putOffExpiration(Key $key, float $ttl)
     {
         if ($ttl < 1) {
-            throw new InvalidArgumentException(sprintf('%s() expects a TTL greater or equals to 1 second. Got %s.', __METHOD__, $ttl));
+            throw new InvalidTtlException(sprintf('%s() expects a TTL greater or equals to 1 second. Got %s.', __METHOD__, $ttl));
         }
 
         $key->reduceLifetime($ttl);
@@ -178,9 +165,7 @@ class PdoStore implements StoreInterface
             throw new LockConflictedException();
         }
 
-        if ($key->isExpired()) {
-            throw new LockExpiredException(sprintf('Failed to put off the expiration of the "%s" lock within the specified time.', $key));
-        }
+        $this->checkNotExpired($key);
     }
 
     /**
@@ -232,11 +217,18 @@ class PdoStore implements StoreInterface
     /**
      * @return \PDO|Connection
      */
-    private function getConnection()
+    private function getConnection(): object
     {
         if (null === $this->conn) {
-            $this->conn = new \PDO($this->dsn, $this->username, $this->password, $this->connectionOptions);
-            $this->conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            if (strpos($this->dsn, '://')) {
+                if (!class_exists(DriverManager::class)) {
+                    throw new InvalidArgumentException(sprintf('Failed to parse the DSN "%s". Try running "composer require doctrine/dbal".', $this->dsn));
+                }
+                $this->conn = DriverManager::getConnection(['url' => $this->dsn]);
+            } else {
+                $this->conn = new \PDO($this->dsn, $this->username, $this->password, $this->connectionOptions);
+                $this->conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            }
         }
 
         return $this->conn;
@@ -294,15 +286,13 @@ class PdoStore implements StoreInterface
     }
 
     /**
-     * Cleanups the table by removing all expired locks.
+     * Cleans up the table by removing all expired locks.
      */
     private function prune(): void
     {
         $sql = "DELETE FROM $this->table WHERE $this->expirationCol <= {$this->getCurrentTimestampStatement()}";
 
-        $stmt = $this->getConnection()->prepare($sql);
-
-        $stmt->execute();
+        $this->getConnection()->exec($sql);
     }
 
     private function getDriver(): string

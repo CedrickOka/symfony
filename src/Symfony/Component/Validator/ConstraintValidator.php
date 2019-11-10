@@ -83,14 +83,12 @@ abstract class ConstraintValidator implements ConstraintValidatorInterface
      *
      * @return string The string representation of the passed value
      */
-    protected function formatValue($value, $format = 0)
+    protected function formatValue($value, int $format = 0)
     {
-        $isDateTime = $value instanceof \DateTimeInterface;
-
-        if (($format & self::PRETTY_DATE) && $isDateTime) {
+        if (($format & self::PRETTY_DATE) && $value instanceof \DateTimeInterface) {
             if (class_exists('IntlDateFormatter')) {
                 $locale = \Locale::getDefault();
-                $formatter = new \IntlDateFormatter($locale, \IntlDateFormatter::MEDIUM, \IntlDateFormatter::SHORT);
+                $formatter = new \IntlDateFormatter($locale, \IntlDateFormatter::MEDIUM, \IntlDateFormatter::SHORT, $value->getTimezone());
 
                 // neither the native nor the stub IntlDateFormatter support
                 // DateTimeImmutable as of yet
@@ -156,7 +154,7 @@ abstract class ConstraintValidator implements ConstraintValidatorInterface
      *
      * @see formatValue()
      */
-    protected function formatValues(array $values, $format = 0)
+    protected function formatValues(array $values, int $format = 0)
     {
         foreach ($values as $key => $value) {
             $values[$key] = $this->formatValue($value, $format);

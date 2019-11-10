@@ -21,7 +21,7 @@ class Alias
     private $deprecated;
     private $deprecationTemplate;
 
-    private static $defaultDeprecationTemplate = 'The "%service_id%" service alias is deprecated. You should stop using it, as it will soon be removed.';
+    private static $defaultDeprecationTemplate = 'The "%alias_id%" service alias is deprecated. You should stop using it, as it will be removed in the future.';
 
     public function __construct(string $id, bool $public = true)
     {
@@ -44,13 +44,11 @@ class Alias
     /**
      * Sets if this Alias is public.
      *
-     * @param bool $boolean If this Alias should be public
-     *
      * @return $this
      */
-    public function setPublic($boolean)
+    public function setPublic(bool $boolean)
     {
-        $this->public = (bool) $boolean;
+        $this->public = $boolean;
         $this->private = false;
 
         return $this;
@@ -64,13 +62,11 @@ class Alias
      * but triggers a deprecation notice when accessed from the container,
      * so that the alias can be made really private in 4.0.
      *
-     * @param bool $boolean
-     *
      * @return $this
      */
-    public function setPrivate($boolean)
+    public function setPrivate(bool $boolean)
     {
-        $this->private = (bool) $boolean;
+        $this->private = $boolean;
 
         return $this;
     }
@@ -96,21 +92,21 @@ class Alias
      *
      * @throws InvalidArgumentException when the message template is invalid
      */
-    public function setDeprecated($status = true, $template = null)
+    public function setDeprecated(bool $status = true, string $template = null)
     {
         if (null !== $template) {
             if (preg_match('#[\r\n]|\*/#', $template)) {
                 throw new InvalidArgumentException('Invalid characters found in deprecation template.');
             }
 
-            if (false === strpos($template, '%service_id%')) {
-                throw new InvalidArgumentException('The deprecation template must contain the "%service_id%" placeholder.');
+            if (false === strpos($template, '%alias_id%')) {
+                throw new InvalidArgumentException('The deprecation template must contain the "%alias_id%" placeholder.');
             }
 
             $this->deprecationTemplate = $template;
         }
 
-        $this->deprecated = (bool) $status;
+        $this->deprecated = $status;
 
         return $this;
     }
@@ -122,7 +118,7 @@ class Alias
 
     public function getDeprecationMessage(string $id): string
     {
-        return str_replace('%service_id%', $id, $this->deprecationTemplate ?: self::$defaultDeprecationTemplate);
+        return str_replace('%alias_id%', $id, $this->deprecationTemplate ?: self::$defaultDeprecationTemplate);
     }
 
     /**

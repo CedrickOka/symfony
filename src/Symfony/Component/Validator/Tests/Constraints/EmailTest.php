@@ -16,17 +16,6 @@ use Symfony\Component\Validator\Constraints\Email;
 
 class EmailTest extends TestCase
 {
-    /**
-     * @expectedDeprecation The "strict" property is deprecated since Symfony 4.1. Use "mode"=>"strict" instead.
-     * @group legacy
-     */
-    public function testLegacyConstructorStrict()
-    {
-        $subject = new Email(['strict' => true]);
-
-        $this->assertTrue($subject->strict);
-    }
-
     public function testConstructorStrict()
     {
         $subject = new Email(['mode' => Email::VALIDATION_MODE_STRICT]);
@@ -34,12 +23,31 @@ class EmailTest extends TestCase
         $this->assertEquals(Email::VALIDATION_MODE_STRICT, $subject->mode);
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage The "mode" parameter value is not valid.
-     */
     public function testUnknownModesTriggerException()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('The "mode" parameter value is not valid.');
         new Email(['mode' => 'Unknown Mode']);
+    }
+
+    public function testNormalizerCanBeSet()
+    {
+        $email = new Email(['normalizer' => 'trim']);
+
+        $this->assertEquals('trim', $email->normalizer);
+    }
+
+    public function testInvalidNormalizerThrowsException()
+    {
+        $this->expectException('Symfony\Component\Validator\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('The "normalizer" option must be a valid callable ("string" given).');
+        new Email(['normalizer' => 'Unknown Callable']);
+    }
+
+    public function testInvalidNormalizerObjectThrowsException()
+    {
+        $this->expectException('Symfony\Component\Validator\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('The "normalizer" option must be a valid callable ("stdClass" given).');
+        new Email(['normalizer' => new \stdClass()]);
     }
 }

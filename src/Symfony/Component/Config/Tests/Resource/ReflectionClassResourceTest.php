@@ -13,8 +13,9 @@ namespace Symfony\Component\Config\Tests\Resource;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Resource\ReflectionClassResource;
-use Symfony\Component\DependencyInjection\ServiceSubscriberInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\Messenger\Handler\MessageSubscriberInterface;
+use Symfony\Contracts\Service\ServiceSubscriberInterface;
 
 class ReflectionClassResourceTest extends TestCase
 {
@@ -108,7 +109,7 @@ EOPHP;
         }
     }
 
-    public function provideHashedSignature()
+    public function provideHashedSignature(): iterable
     {
         yield [0, 0, "// line change\n\n"];
         yield [1, 0, '/** class docblock */'];
@@ -133,6 +134,14 @@ EOPHP;
         yield [1, 13, 'protected function prot($a = [123]) {}'];
         yield [0, 14, '/** priv docblock */'];
         yield [0, 15, ''];
+
+        if (\PHP_VERSION_ID >= 70400) {
+            // PHP7.4 typed properties without default value are
+            // undefined, make sure this doesn't throw an error
+            yield [1, 5, 'public array $pub;'];
+            yield [0, 7, 'protected int $prot;'];
+            yield [0, 9, 'private string $priv;'];
+        }
     }
 
     public function testEventSubscriber()
@@ -147,6 +156,24 @@ EOPHP;
         $this->assertTrue($res->isFresh(0));
     }
 
+    public function testMessageSubscriber()
+    {
+        $res = new ReflectionClassResource(new \ReflectionClass(TestMessageSubscriber::class));
+        $this->assertTrue($res->isFresh(0));
+
+        TestMessageSubscriberConfigHolder::$handledMessages = ['SomeMessageClass' => []];
+        $this->assertFalse($res->isFresh(0));
+
+        $res = new ReflectionClassResource(new \ReflectionClass(TestMessageSubscriber::class));
+        $this->assertTrue($res->isFresh(0));
+
+        TestMessageSubscriberConfigHolder::$handledMessages = ['OtherMessageClass' => []];
+        $this->assertFalse($res->isFresh(0));
+
+        $res = new ReflectionClassResource(new \ReflectionClass(TestMessageSubscriber::class));
+        $this->assertTrue($res->isFresh(0));
+    }
+
     public function testServiceSubscriber()
     {
         $res = new ReflectionClassResource(new \ReflectionClass(TestServiceSubscriber::class));
@@ -156,6 +183,15 @@ EOPHP;
         $this->assertFalse($res->isFresh(0));
 
         $res = new ReflectionClassResource(new \ReflectionClass(TestServiceSubscriber::class));
+        $this->assertTrue($res->isFresh(0));
+    }
+
+    public function testIgnoresObjectsInSignature()
+    {
+        $res = new ReflectionClassResource(new \ReflectionClass(TestServiceWithStaticProperty::class));
+        $this->assertTrue($res->isFresh(0));
+
+        TestServiceWithStaticProperty::$initializedObject = new TestServiceWithStaticProperty();
         $this->assertTrue($res->isFresh(0));
     }
 }
@@ -168,18 +204,37 @@ class TestEventSubscriber implements EventSubscriberInterface
 {
     public static $subscribedEvents = [];
 
-    public static function getSubscribedEvents()
+    public static function getSubscribedEvents(): array
     {
         return self::$subscribedEvents;
     }
+}
+
+class TestMessageSubscriber implements MessageSubscriberInterface
+{
+    public static function getHandledMessages(): iterable
+    {
+        foreach (TestMessageSubscriberConfigHolder::$handledMessages as $key => $subscribedMessage) {
+            yield $key => $subscribedMessage;
+        }
+    }
+}
+class TestMessageSubscriberConfigHolder
+{
+    public static $handledMessages = [];
 }
 
 class TestServiceSubscriber implements ServiceSubscriberInterface
 {
     public static $subscribedServices = [];
 
-    public static function getSubscribedServices()
+    public static function getSubscribedServices(): array
     {
         return self::$subscribedServices;
     }
+}
+
+class TestServiceWithStaticProperty
+{
+    public static $initializedObject;
 }

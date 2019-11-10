@@ -61,11 +61,7 @@ class TwigExtractor extends AbstractFileExtractor implements ExtractorInterface
                 if ($file instanceof \SplFileInfo) {
                     $path = $file->getRealPath() ?: $file->getPathname();
                     $name = $file instanceof SplFileInfo ? $file->getRelativePathname() : $path;
-                    if (method_exists($e, 'setSourceContext')) {
-                        $e->setSourceContext(new Source('', $name, $path));
-                    } else {
-                        $e->setTemplateName($name);
-                    }
+                    $e->setSourceContext(new Source('', $name, $path));
                 }
 
                 throw $e;
@@ -76,12 +72,12 @@ class TwigExtractor extends AbstractFileExtractor implements ExtractorInterface
     /**
      * {@inheritdoc}
      */
-    public function setPrefix($prefix)
+    public function setPrefix(string $prefix)
     {
         $this->prefix = $prefix;
     }
 
-    protected function extractTemplate($template, MessageCatalogue $catalogue)
+    protected function extractTemplate(string $template, MessageCatalogue $catalogue)
     {
         $visitor = $this->twig->getExtension('Symfony\Bridge\Twig\Extension\TranslationExtension')->getTranslationNodeVisitor();
         $visitor->enable();
@@ -96,19 +92,15 @@ class TwigExtractor extends AbstractFileExtractor implements ExtractorInterface
     }
 
     /**
-     * @param string $file
-     *
      * @return bool
      */
-    protected function canBeExtracted($file)
+    protected function canBeExtracted(string $file)
     {
         return $this->isFile($file) && 'twig' === pathinfo($file, PATHINFO_EXTENSION);
     }
 
     /**
-     * @param string|array $directory
-     *
-     * @return array
+     * {@inheritdoc}
      */
     protected function extractFromDirectory($directory)
     {

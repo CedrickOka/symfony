@@ -13,6 +13,8 @@ namespace Symfony\Component\Config\Tests\Definition\Builder;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
+use Symfony\Component\Config\Definition\Builder\BooleanNodeDefinition;
+use Symfony\Component\Config\Definition\Builder\NodeDefinition;
 use Symfony\Component\Config\Definition\Builder\ScalarNodeDefinition;
 use Symfony\Component\Config\Definition\Exception\InvalidDefinitionException;
 use Symfony\Component\Config\Definition\Processor;
@@ -36,11 +38,11 @@ class ArrayNodeDefinitionTest extends TestCase
     }
 
     /**
-     * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidDefinitionException
      * @dataProvider providePrototypeNodeSpecificCalls
      */
     public function testPrototypeNodeSpecificOption($method, $args)
     {
+        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidDefinitionException');
         $node = new ArrayNodeDefinition('root');
 
         $node->{$method}(...$args);
@@ -59,11 +61,9 @@ class ArrayNodeDefinitionTest extends TestCase
         ];
     }
 
-    /**
-     * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidDefinitionException
-     */
     public function testConcreteNodeSpecificOption()
     {
+        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidDefinitionException');
         $node = new ArrayNodeDefinition('root');
         $node
             ->addDefaultsIfNotSet()
@@ -72,11 +72,9 @@ class ArrayNodeDefinitionTest extends TestCase
         $node->getNode();
     }
 
-    /**
-     * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidDefinitionException
-     */
     public function testPrototypeNodesCantHaveADefaultValueWhenUsingDefaultChildren()
     {
+        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidDefinitionException');
         $node = new ArrayNodeDefinition('root');
         $node
             ->defaultValue([])
@@ -317,12 +315,10 @@ class ArrayNodeDefinitionTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    /**
-     * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidConfigurationException
-     * @expectedExceptionMessage The path "root" should have at least 1 element(s) defined.
-     */
     public function testCannotBeEmpty()
     {
+        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectExceptionMessage('The path "root" should have at least 1 element(s) defined.');
         $node = new ArrayNodeDefinition('root');
         $node
             ->cannotBeEmpty()
@@ -345,16 +341,93 @@ class ArrayNodeDefinitionTest extends TestCase
         $this->assertSame('The "root.foo" node is deprecated.', $deprecatedNode->getDeprecationMessage($deprecatedNode->getName(), $deprecatedNode->getPath()));
     }
 
-    /**
-     * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidDefinitionException
-     * @expectedExceptionMessage ->cannotBeEmpty() is not applicable to concrete nodes at path "root"
-     */
     public function testCannotBeEmptyOnConcreteNode()
     {
+        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidDefinitionException');
+        $this->expectExceptionMessage('->cannotBeEmpty() is not applicable to concrete nodes at path "root"');
         $node = new ArrayNodeDefinition('root');
         $node->cannotBeEmpty();
 
         $node->getNode()->finalize([]);
+    }
+
+    public function testFindShouldThrowExceptionIfNodeDoesNotExistInRootNode()
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Node with name "child" does not exist in the current node "root".');
+
+        $rootNode = new ArrayNodeDefinition('root');
+        $rootNode
+            ->children()
+                ->arrayNode('social_media_channels')->end()
+            ->end()
+        ;
+
+        $rootNode->find('child');
+    }
+
+    public function testFindShouldHandleComplexConfigurationProperly()
+    {
+        $rootNode = new ArrayNodeDefinition('root');
+        $rootNode
+            ->children()
+                ->arrayNode('social_media_channels')
+                    ->children()
+                        ->booleanNode('enable')->end()
+                        ->arrayNode('twitter')->end()
+                        ->arrayNode('facebook')->end()
+                        ->arrayNode('instagram')
+                            ->children()
+                                ->booleanNode('enable')->end()
+                                ->arrayNode('accounts')->end()
+                            ->end()
+                    ->end()
+                ->end()
+                ->append(
+                    $mailerNode = (new ArrayNodeDefinition('mailer'))
+                        ->children()
+                            ->booleanNode('enable')->end()
+                            ->arrayNode('transports')->end()
+                        ->end()
+                )
+            ->end()
+        ;
+
+        $this->assertNode('social_media_channels', ArrayNodeDefinition::class, $rootNode->find('social_media_channels'));
+        $this->assertNode('enable', BooleanNodeDefinition::class, $rootNode->find('social_media_channels.enable'));
+        $this->assertNode('twitter', ArrayNodeDefinition::class, $rootNode->find('social_media_channels.twitter'));
+        $this->assertNode('facebook', ArrayNodeDefinition::class, $rootNode->find('social_media_channels.facebook'));
+        $this->assertNode('instagram', ArrayNodeDefinition::class, $rootNode->find('social_media_channels.instagram'));
+        $this->assertNode('enable', BooleanNodeDefinition::class, $rootNode->find('social_media_channels.instagram.enable'));
+        $this->assertNode('accounts', ArrayNodeDefinition::class, $rootNode->find('social_media_channels.instagram.accounts'));
+
+        $this->assertNode('enable', BooleanNodeDefinition::class, $mailerNode->find('enable'));
+        $this->assertNode('transports', ArrayNodeDefinition::class, $mailerNode->find('transports'));
+    }
+
+    public function testFindShouldWorkProperlyForNonDefaultPathSeparator()
+    {
+        $rootNode = new ArrayNodeDefinition('root');
+        $rootNode
+            ->setPathSeparator('.|')
+            ->children()
+            ->arrayNode('mailer.configuration')
+                ->children()
+                    ->booleanNode('enable')->end()
+                    ->arrayNode('transports')->end()
+                ->end()
+            ->end()
+        ;
+
+        $this->assertNode('mailer.configuration', ArrayNodeDefinition::class, $rootNode->find('mailer.configuration'));
+        $this->assertNode('enable', BooleanNodeDefinition::class, $rootNode->find('mailer.configuration.|enable'));
+        $this->assertNode('transports', ArrayNodeDefinition::class, $rootNode->find('mailer.configuration.|transports'));
+    }
+
+    protected function assertNode(string $expectedName, string $expectedType, NodeDefinition $actualNode): void
+    {
+        $this->assertInstanceOf($expectedType, $actualNode);
+        $this->assertSame($expectedName, $this->getField($actualNode, 'name'));
     }
 
     protected function getField($object, $field)

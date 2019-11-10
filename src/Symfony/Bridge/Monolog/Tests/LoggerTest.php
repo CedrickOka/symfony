@@ -12,6 +12,7 @@
 namespace Symfony\Bridge\Monolog\Tests;
 
 use Monolog\Handler\TestHandler;
+use Monolog\ResettableInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bridge\Monolog\Logger;
 use Symfony\Bridge\Monolog\Processor\DebugProcessor;
@@ -108,36 +109,31 @@ class LoggerTest extends TestCase
         $this->assertSame(0, $logger->countErrors());
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation The "Symfony\Bridge\Monolog\Logger::getLogs()" method will have a new "Request $request = null" argument in version 5.0, not defining it is deprecated since Symfony 4.2.
-     */
+    public function testReset()
+    {
+        $handler = new TestHandler();
+        $logger = new Logger('test', [$handler]);
+        $logger->pushProcessor(new DebugProcessor());
+
+        $logger->info('test');
+        $logger->reset();
+
+        $this->assertEmpty($logger->getLogs());
+        $this->assertSame(0, $logger->countErrors());
+        if (class_exists(ResettableInterface::class)) {
+            $this->assertEmpty($handler->getRecords());
+        }
+    }
+
     public function testInheritedClassCallGetLogsWithoutArgument()
     {
         $loggerChild = new ClassThatInheritLogger('test');
-        $loggerChild->getLogs();
+        $this->assertSame([], $loggerChild->getLogs());
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation The "Symfony\Bridge\Monolog\Logger::countErrors()" method will have a new "Request $request = null" argument in version 5.0, not defining it is deprecated since Symfony 4.2.
-     */
     public function testInheritedClassCallCountErrorsWithoutArgument()
     {
         $loggerChild = new ClassThatInheritLogger('test');
-        $loggerChild->countErrors();
-    }
-}
-
-class ClassThatInheritLogger extends Logger
-{
-    public function getLogs()
-    {
-        parent::getLogs();
-    }
-
-    public function countErrors()
-    {
-        parent::countErrors();
+        $this->assertEquals(0, $loggerChild->countErrors());
     }
 }

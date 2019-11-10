@@ -11,7 +11,6 @@
 
 namespace Symfony\Component\Validator\Tests\Constraints;
 
-use Symfony\Bridge\PhpUnit\DnsMock;
 use Symfony\Component\Validator\Constraints\Email;
 use Symfony\Component\Validator\Constraints\EmailValidator;
 use Symfony\Component\Validator\Test\ConstraintValidatorTestCase;
@@ -26,25 +25,10 @@ class EmailValidatorTest extends ConstraintValidatorTestCase
         return new EmailValidator(Email::VALIDATION_MODE_LOOSE);
     }
 
-    /**
-     * @expectedDeprecation Calling `new Symfony\Component\Validator\Constraints\EmailValidator(true)` is deprecated since Symfony 4.1, use `new Symfony\Component\Validator\Constraints\EmailValidator("strict")` instead.
-     * @group legacy
-     */
-    public function testLegacyValidatorConstructorStrict()
-    {
-        $this->validator = new EmailValidator(true);
-        $this->validator->initialize($this->context);
-        $this->validator->validate('example@localhost', new Email());
-
-        $this->assertNoViolation();
-    }
-
-    /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage The "defaultMode" parameter value is not valid.
-     */
     public function testUnknownDefaultModeTriggerException()
     {
+        $this->expectException('InvalidArgumentException');
+        $this->expectExceptionMessage('The "defaultMode" parameter value is not valid.');
         new EmailValidator('Unknown Mode');
     }
 
@@ -62,11 +46,9 @@ class EmailValidatorTest extends ConstraintValidatorTestCase
         $this->assertNoViolation();
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\UnexpectedValueException
-     */
     public function testExpectsStringCompatibleType()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\UnexpectedValueException');
         $this->validator->validate(new \stdClass(), new Email());
     }
 
@@ -91,6 +73,28 @@ class EmailValidatorTest extends ConstraintValidatorTestCase
             ['example@example.co..uk'],
             ['example@-example.com'],
             [sprintf('example@%s.com', str_repeat('a', 64))],
+        ];
+    }
+
+    /**
+     * @dataProvider getValidEmailsWithWhitespaces
+     */
+    public function testValidNormalizedEmails($email)
+    {
+        $this->validator->validate($email, new Email(['normalizer' => 'trim']));
+
+        $this->assertNoViolation();
+    }
+
+    public function getValidEmailsWithWhitespaces()
+    {
+        return [
+            ["\x20example@example.co.uk\x20"],
+            ["\x09\x09example@example.co..uk\x09\x09"],
+            ["\x0A{}~!@!@£$%%^&*().!@£$%^&*()\x0A"],
+            ["\x0D\x0Dexample@example.co..uk\x0D\x0D"],
+            ["\x00example@-example.com"],
+            ["example@example.com\x0B\x0B"],
         ];
     }
 
@@ -146,12 +150,10 @@ class EmailValidatorTest extends ConstraintValidatorTestCase
      */
     public function testInvalidHtml5Emails($email)
     {
-        $constraint = new Email(
-            [
-                'message' => 'myMessage',
-                'mode' => Email::VALIDATION_MODE_HTML5,
-            ]
-        );
+        $constraint = new Email([
+            'message' => 'myMessage',
+            'mode' => Email::VALIDATION_MODE_HTML5,
+        ]);
 
         $this->validator->validate($email, $constraint);
 
@@ -213,30 +215,14 @@ class EmailValidatorTest extends ConstraintValidatorTestCase
         $this->assertNoViolation();
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage The Symfony\Component\Validator\Constraints\Email::$mode parameter value is not valid.
-     */
     public function testUnknownModesOnValidateTriggerException()
     {
+        $this->expectException('InvalidArgumentException');
+        $this->expectExceptionMessage('The Symfony\Component\Validator\Constraints\Email::$mode parameter value is not valid.');
         $constraint = new Email();
         $constraint->mode = 'Unknown Mode';
 
         $this->validator->validate('example@example..com', $constraint);
-    }
-
-    /**
-     * @expectedDeprecation The "strict" property is deprecated since Symfony 4.1. Use "mode"=>"strict" instead.
-     * @expectedDeprecation The Symfony\Component\Validator\Constraints\Email::$strict property is deprecated since Symfony 4.1. Use Symfony\Component\Validator\Constraints\Email::mode="strict" instead.
-     * @group legacy
-     */
-    public function testStrict()
-    {
-        $constraint = new Email(['strict' => true]);
-
-        $this->validator->validate('example@localhost', $constraint);
-
-        $this->assertNoViolation();
     }
 
     /**
@@ -311,89 +297,6 @@ class EmailValidatorTest extends ConstraintValidatorTestCase
             ['test@email<'],
             ['test@email{'],
             [str_repeat('x', 254).'@example.com'], //email with warnings
-        ];
-    }
-
-    /**
-     * @dataProvider getDnsChecks
-     * @requires function Symfony\Bridge\PhpUnit\DnsMock::withMockedHosts
-     * @group legacy
-     */
-    public function testDnsChecks($type, $violation)
-    {
-        DnsMock::withMockedHosts(['example.com' => [['type' => $violation ? false : $type]]]);
-
-        $constraint = new Email([
-            'message' => 'myMessage',
-            'MX' === $type ? 'checkMX' : 'checkHost' => true,
-        ]);
-
-        $this->validator->validate('foo@example.com', $constraint);
-
-        if (!$violation) {
-            $this->assertNoViolation();
-        } else {
-            $this->buildViolation('myMessage')
-                ->setParameter('{{ value }}', '"foo@example.com"')
-                ->setCode($violation)
-                ->assertRaised();
-        }
-    }
-
-    public function getDnsChecks()
-    {
-        return [
-            ['MX', false],
-            ['MX', Email::MX_CHECK_FAILED_ERROR],
-            ['A', false],
-            ['A', Email::HOST_CHECK_FAILED_ERROR],
-            ['AAAA', false],
-            ['AAAA', Email::HOST_CHECK_FAILED_ERROR],
-        ];
-    }
-
-    /**
-     * @requires function Symfony\Bridge\PhpUnit\DnsMock::withMockedHosts
-     * @group legacy
-     */
-    public function testHostnameIsProperlyParsed()
-    {
-        DnsMock::withMockedHosts(['baz.com' => [['type' => 'MX']]]);
-
-        $this->validator->validate(
-            '"foo@bar"@baz.com',
-            new Email(['checkMX' => true])
-        );
-
-        $this->assertNoViolation();
-    }
-
-    /**
-     * @dataProvider provideCheckTypes
-     * @group legacy
-     */
-    public function testEmptyHostIsNotValid($checkType, $violation)
-    {
-        $this->validator->validate(
-            'foo@bar.fr@',
-            new Email([
-                'message' => 'myMessage',
-                $checkType => true,
-            ])
-        );
-
-        $this
-            ->buildViolation('myMessage')
-            ->setParameter('{{ value }}', '"foo@bar.fr@"')
-            ->setCode($violation)
-            ->assertRaised();
-    }
-
-    public function provideCheckTypes()
-    {
-        return [
-            ['checkMX', Email::MX_CHECK_FAILED_ERROR],
-            ['checkHost', Email::HOST_CHECK_FAILED_ERROR],
         ];
     }
 }

@@ -31,7 +31,7 @@ class DebugCommandTest extends TestCase
         $ret = $tester->execute([], ['decorated' => false]);
 
         $this->assertEquals(0, $ret, 'Returns 0 in case of success');
-        $this->assertContains('Built-in form types', $tester->getDisplay());
+        $this->assertStringContainsString('Built-in form types', $tester->getDisplay());
     }
 
     public function testDebugDeprecatedDefaults()
@@ -41,11 +41,6 @@ class DebugCommandTest extends TestCase
 
         $this->assertEquals(0, $ret, 'Returns 0 in case of success');
         $this->assertSame(<<<TXT
-
-Built-in form types (Symfony\Component\Form\Extension\Core\Type)
-----------------------------------------------------------------
-
- IntegerType, TimezoneType
 
 Service form types
 ------------------
@@ -63,7 +58,16 @@ TXT
         $ret = $tester->execute(['class' => 'FormType'], ['decorated' => false]);
 
         $this->assertEquals(0, $ret, 'Returns 0 in case of success');
-        $this->assertContains('Symfony\Component\Form\Extension\Core\Type\FormType (Block prefix: "form")', $tester->getDisplay());
+        $this->assertStringContainsString('Symfony\Component\Form\Extension\Core\Type\FormType (Block prefix: "form")', $tester->getDisplay());
+    }
+
+    public function testDebugDateTimeType()
+    {
+        $tester = $this->createCommandTester();
+        $tester->execute(['class' => 'DateTime'], ['decorated' => false, 'interactive' => false]);
+
+        $this->assertEquals(0, $tester->getStatusCode(), 'Returns 0 in case of success');
+        $this->assertStringContainsString('Symfony\Component\Form\Extension\Core\Type\DateTimeType (Block prefix: "datetime")', $tester->getDisplay());
     }
 
     public function testDebugFormTypeOption()
@@ -72,15 +76,13 @@ TXT
         $ret = $tester->execute(['class' => 'FormType', 'option' => 'method'], ['decorated' => false]);
 
         $this->assertEquals(0, $ret, 'Returns 0 in case of success');
-        $this->assertContains('Symfony\Component\Form\Extension\Core\Type\FormType (method)', $tester->getDisplay());
+        $this->assertStringContainsString('Symfony\Component\Form\Extension\Core\Type\FormType (method)', $tester->getDisplay());
     }
 
-    /**
-     * @expectedException \Symfony\Component\Console\Exception\InvalidArgumentException
-     * @expectedExceptionMessage Could not find type "NonExistentType"
-     */
     public function testDebugSingleFormTypeNotFound()
     {
+        $this->expectException('Symfony\Component\Console\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('Could not find type "NonExistentType"');
         $tester = $this->createCommandTester();
         $tester->execute(['class' => 'NonExistentType'], ['decorated' => false, 'interactive' => false]);
     }
@@ -95,12 +97,8 @@ Did you mean one of these?
     Symfony\Component\Form\Tests\Fixtures\Debug\B\AmbiguousType
 TXT;
 
-        if (method_exists($this, 'expectException')) {
-            $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage($expectedMessage);
-        } else {
-            $this->setExpectedException(InvalidArgumentException::class, $expectedMessage);
-        }
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($expectedMessage);
 
         $tester = $this->createCommandTester([
             'Symfony\Component\Form\Tests\Fixtures\Debug\A',
@@ -136,12 +134,49 @@ TXT
         , $output);
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     */
     public function testDebugInvalidFormType()
     {
+        $this->expectException('InvalidArgumentException');
         $this->createCommandTester()->execute(['class' => 'test']);
+    }
+
+    public function testDebugCustomFormTypeOption()
+    {
+        $tester = $this->createCommandTester([], [FooType::class]);
+        $ret = $tester->execute(['class' => FooType::class, 'option' => 'foo'], ['decorated' => false]);
+
+        $this->assertEquals(0, $ret, 'Returns 0 in case of success');
+        $this->assertStringMatchesFormat(<<<'TXT'
+
+Symfony\Component\Form\Tests\Command\FooType (foo)
+==================================================
+
+ ---------------- -----------%s
+  Required         true      %s
+ ---------------- -----------%s
+  Default          -         %s
+ ---------------- -----------%s
+  Allowed types    [         %s
+                     "string"%s
+                   ]         %s
+ ---------------- -----------%s
+  Allowed values   [         %s
+                     "bar",  %s
+                     "baz"   %s
+                   ]         %s
+ ---------------- -----------%s
+  Normalizers      [         %s
+                     Closure(%s
+                       class:%s
+                       this: %s
+                       file: %s
+                       line: %s
+                     }       %s
+                   ]         %s
+ ---------------- -----------%s
+
+TXT
+            , $tester->getDisplay(true));
     }
 
     private function createCommandTester(array $namespaces = ['Symfony\Component\Form\Extension\Core\Type'], array $types = [])

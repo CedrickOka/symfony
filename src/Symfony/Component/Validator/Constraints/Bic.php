@@ -11,7 +11,7 @@
 
 namespace Symfony\Component\Validator\Constraints;
 
-use Symfony\Component\Intl\Intl;
+use Symfony\Component\Intl\Countries;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\Exception\ConstraintDefinitionException;
@@ -47,13 +47,12 @@ class Bic extends Constraint
 
     public function __construct($options = null)
     {
-        if (!class_exists(Intl::class)) {
-            // throw new LogicException(sprintf('The "symfony/intl" component is required to use the "%s" constraint.', __CLASS__));
-            @trigger_error(sprintf('Using the "%s" constraint without the "symfony/intl" component installed is deprecated since Symfony 4.2.', __CLASS__), E_USER_DEPRECATED);
+        if (!class_exists(Countries::class)) {
+            throw new LogicException('The Intl component is required to use the Bic constraint. Try running "composer require symfony/intl".');
         }
 
         if (isset($options['iban']) && isset($options['ibanPropertyPath'])) {
-            throw new ConstraintDefinitionException(sprintf('The "iban" and "ibanPropertyPath" options of the Iban constraint cannot be used at the same time.', self::class));
+            throw new ConstraintDefinitionException('The "iban" and "ibanPropertyPath" options of the Iban constraint cannot be used at the same time.');
         }
 
         if (isset($options['ibanPropertyPath']) && !class_exists(PropertyAccess::class)) {

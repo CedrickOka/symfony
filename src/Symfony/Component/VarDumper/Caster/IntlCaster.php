@@ -16,10 +16,12 @@ use Symfony\Component\VarDumper\Cloner\Stub;
 /**
  * @author Nicolas Grekas <p@tchwork.com>
  * @author Jan Schädlich <jan.schaedlich@sensiolabs.de>
+ *
+ * @final
  */
 class IntlCaster
 {
-    public static function castMessageFormatter(\MessageFormatter $c, array $a, Stub $stub, $isNested)
+    public static function castMessageFormatter(\MessageFormatter $c, array $a, Stub $stub, bool $isNested)
     {
         $a += [
             Caster::PREFIX_VIRTUAL.'locale' => $c->getLocale(),
@@ -29,7 +31,7 @@ class IntlCaster
         return self::castError($c, $a);
     }
 
-    public static function castNumberFormatter(\NumberFormatter $c, array $a, Stub $stub, $isNested, $filter = 0)
+    public static function castNumberFormatter(\NumberFormatter $c, array $a, Stub $stub, bool $isNested, int $filter = 0)
     {
         $a += [
             Caster::PREFIX_VIRTUAL.'locale' => $c->getLocale(),
@@ -106,7 +108,7 @@ class IntlCaster
         return self::castError($c, $a);
     }
 
-    public static function castIntlTimeZone(\IntlTimeZone $c, array $a, Stub $stub, $isNested)
+    public static function castIntlTimeZone(\IntlTimeZone $c, array $a, Stub $stub, bool $isNested)
     {
         $a += [
             Caster::PREFIX_VIRTUAL.'display_name' => $c->getDisplayName(),
@@ -123,7 +125,7 @@ class IntlCaster
         return self::castError($c, $a);
     }
 
-    public static function castIntlCalendar(\IntlCalendar $c, array $a, Stub $stub, $isNested, $filter = 0)
+    public static function castIntlCalendar(\IntlCalendar $c, array $a, Stub $stub, bool $isNested, int $filter = 0)
     {
         $a += [
             Caster::PREFIX_VIRTUAL.'type' => $c->getType(),
@@ -132,7 +134,6 @@ class IntlCaster
             Caster::PREFIX_VIRTUAL.'repeated_wall_time_option' => $c->getRepeatedWallTimeOption(),
             Caster::PREFIX_VIRTUAL.'skipped_wall_time_option' => $c->getSkippedWallTimeOption(),
             Caster::PREFIX_VIRTUAL.'time' => $c->getTime(),
-            Caster::PREFIX_VIRTUAL.'type' => $c->getType(),
             Caster::PREFIX_VIRTUAL.'in_daylight_time' => $c->inDaylightTime(),
             Caster::PREFIX_VIRTUAL.'is_lenient' => $c->isLenient(),
             Caster::PREFIX_VIRTUAL.'time_zone' => ($filter & Caster::EXCLUDE_VERBOSE) ? new CutStub($c->getTimeZone()) : $c->getTimeZone(),
@@ -141,7 +142,7 @@ class IntlCaster
         return self::castError($c, $a);
     }
 
-    public static function castIntlDateFormatter(\IntlDateFormatter $c, array $a, Stub $stub, $isNested, $filter = 0)
+    public static function castIntlDateFormatter(\IntlDateFormatter $c, array $a, Stub $stub, bool $isNested, int $filter = 0)
     {
         $a += [
             Caster::PREFIX_VIRTUAL.'locale' => $c->getLocale(),
@@ -157,7 +158,7 @@ class IntlCaster
         return self::castError($c, $a);
     }
 
-    private static function castError($c, array $a): array
+    private static function castError(object $c, array $a): array
     {
         if ($errorCode = $c->getErrorCode()) {
             $a += [

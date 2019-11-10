@@ -18,10 +18,10 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\ServiceLocator;
-use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\AbstractTypeExtension;
+use Symfony\Component\Form\Command\DebugCommand;
 use Symfony\Component\Form\DependencyInjection\FormPass;
-use Symfony\Component\Form\FormRegistryInterface;
+use Symfony\Component\Form\FormRegistry;
 
 /**
  * @author Bernhard Schussek <bschussek@gmail.com>
@@ -71,8 +71,12 @@ class FormPassTest extends TestCase
     {
         $container = $this->createContainerBuilder();
 
+        $container->register('form.registry', FormRegistry::class);
+        $commandDefinition = new Definition(DebugCommand::class, [new Reference('form.registry')]);
+        $commandDefinition->setPublic(true);
+
         $container->setDefinition('form.extension', $this->createExtensionDefinition());
-        $container->setDefinition('console.command.form_debug', $this->createDebugCommandDefinition());
+        $container->setDefinition('console.command.form_debug', $commandDefinition);
         $container->register('my.type1', __CLASS__.'_Type1')->addTag('form.type')->setPublic(true);
         $container->register('my.type2', __CLASS__.'_Type2')->addTag('form.type')->setPublic(true);
 
@@ -92,9 +96,13 @@ class FormPassTest extends TestCase
     /**
      * @dataProvider addTaggedTypeExtensionsDataProvider
      */
-    public function testAddTaggedTypeExtensions(array $extensions, array $expectedRegisteredExtensions)
+    public function testAddTaggedTypeExtensions(array $extensions, array $expectedRegisteredExtensions, array $parameters = [])
     {
         $container = $this->createContainerBuilder();
+
+        foreach ($parameters as $name => $value) {
+            $container->setParameter($name, $value);
+        }
 
         $container->setDefinition('form.extension', $this->createExtensionDefinition());
 
@@ -186,96 +194,34 @@ class FormPassTest extends TestCase
                     ]),
                 ],
             ],
-        ];
-    }
-
-    /**
-     * @group legacy
-     * @dataProvider addLegacyTaggedTypeExtensionsDataProvider
-     */
-    public function testAddLegacyTaggedTypeExtensions(array $extensions, array $expectedRegisteredExtensions)
-    {
-        $container = $this->createContainerBuilder();
-
-        $container->setDefinition('form.extension', $this->createExtensionDefinition());
-
-        foreach ($extensions as $serviceId => $tag) {
-            $container->register($serviceId, 'stdClass')->addTag('form.type_extension', $tag);
-        }
-
-        $container->compile();
-
-        $extDefinition = $container->getDefinition('form.extension');
-        $this->assertEquals($expectedRegisteredExtensions, $extDefinition->getArgument(1));
-    }
-
-    /**
-     * @return array
-     */
-    public function addLegacyTaggedTypeExtensionsDataProvider()
-    {
-        return [
             [
                 [
-                    'my.type_extension1' => ['extended_type' => 'type1'],
-                    'my.type_extension2' => ['extended_type' => 'type1'],
-                    'my.type_extension3' => ['extended_type' => 'type2'],
+                    'my.type_extension1' => [
+                        'class' => '%type1_extension_class%',
+                        'tag' => ['extended_type' => 'type1'],
+                    ],
+                    'my.type_extension2' => [
+                        'class' => '%type1_extension_class%',
+                        'tag' => [],
+                    ],
                 ],
                 [
                     'type1' => new IteratorArgument([
                         new Reference('my.type_extension1'),
                         new Reference('my.type_extension2'),
                     ]),
-                    'type2' => new IteratorArgument([new Reference('my.type_extension3')]),
-                ],
-            ],
-            [
-                [
-                    'my.type_extension1' => ['extended_type' => 'type1', 'priority' => 1],
-                    'my.type_extension2' => ['extended_type' => 'type1', 'priority' => 2],
-                    'my.type_extension3' => ['extended_type' => 'type1', 'priority' => -1],
-                    'my.type_extension4' => ['extended_type' => 'type2', 'priority' => 2],
-                    'my.type_extension5' => ['extended_type' => 'type2', 'priority' => 1],
-                    'my.type_extension6' => ['extended_type' => 'type2', 'priority' => 1],
                 ],
                 [
-                    'type1' => new IteratorArgument([
-                        new Reference('my.type_extension2'),
-                        new Reference('my.type_extension1'),
-                        new Reference('my.type_extension3'),
-                    ]),
-                    'type2' => new IteratorArgument([
-                        new Reference('my.type_extension4'),
-                        new Reference('my.type_extension5'),
-                        new Reference('my.type_extension6'),
-                    ]),
+                    'type1_extension_class' => Type1TypeExtension::class,
                 ],
             ],
         ];
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage "form.type_extension" tagged services have to implement the static getExtendedTypes() method. The class for service "my.type_extension" does not implement it.
-     */
-    public function testAddTaggedFormTypeExtensionWithoutExtendedTypeAttributeNorImplementingGetExtendedTypes()
-    {
-        $container = $this->createContainerBuilder();
-
-        $container->setDefinition('form.extension', $this->createExtensionDefinition());
-        $container->register('my.type_extension', 'stdClass')
-            ->setPublic(true)
-            ->addTag('form.type_extension');
-
-        $container->compile();
-    }
-
-    /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage The getExtendedTypes() method for service "my.type_extension" does not return any extended types.
-     */
     public function testAddTaggedFormTypeExtensionWithoutExtendingAnyType()
     {
+        $this->expectException('InvalidArgumentException');
+        $this->expectExceptionMessage('The getExtendedTypes() method for service "my.type_extension" does not return any extended types.');
         $container = $this->createContainerBuilder();
 
         $container->setDefinition('form.extension', $this->createExtensionDefinition());
@@ -379,19 +325,6 @@ class FormPassTest extends TestCase
         return $definition;
     }
 
-    private function createDebugCommandDefinition()
-    {
-        $definition = new Definition('Symfony\Component\Form\Command\DebugCommand');
-        $definition->setPublic(true);
-        $definition->setArguments([
-            $formRegistry = $this->getMockBuilder(FormRegistryInterface::class)->getMock(),
-            [],
-            ['Symfony\Component\Form\Extension\Core\Type'],
-        ]);
-
-        return $definition;
-    }
-
     private function createContainerBuilder()
     {
         $container = new ContainerBuilder();
@@ -399,14 +332,6 @@ class FormPassTest extends TestCase
 
         return $container;
     }
-}
-
-class FormPassTest_Type1 extends AbstractType
-{
-}
-
-class FormPassTest_Type2 extends AbstractType
-{
 }
 
 class Type1TypeExtension extends AbstractTypeExtension

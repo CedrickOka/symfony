@@ -19,7 +19,7 @@ use Symfony\Component\Form\ChoiceList\Factory\PropertyAccessDecorator;
 use Symfony\Component\Form\Extension\Core\Type\TransformationFailureExtension;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Represents the main form extension, which loads the core functionality.
@@ -69,13 +69,14 @@ class CoreExtension extends AbstractExtension
             new Type\TimeType(),
             new Type\TimezoneType(),
             new Type\UrlType(),
-            new Type\FileType(),
+            new Type\FileType($this->translator),
             new Type\ButtonType(),
             new Type\SubmitType(),
             new Type\ResetType(),
             new Type\CurrencyType(),
             new Type\TelType(),
             new Type\ColorType(),
+            new Type\WeekType(),
         ];
     }
 

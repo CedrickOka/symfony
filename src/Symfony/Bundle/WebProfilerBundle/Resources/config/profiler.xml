@@ -2,7 +2,7 @@
 
 <container xmlns="http://symfony.com/schema/dic/services"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://symfony.com/schema/dic/services http://symfony.com/schema/dic/services/services-1.0.xsd">
+    xsi:schemaLocation="http://symfony.com/schema/dic/services https://symfony.com/schema/dic/services/services-1.0.xsd">
 
     <services>
         <defaults public="false" />
@@ -22,11 +22,9 @@
             <argument type="service" id="router" on-invalid="null" />
         </service>
 
-        <service id="web_profiler.controller.exception" class="Symfony\Bundle\WebProfilerBundle\Controller\ExceptionController" public="true">
+        <service id="web_profiler.controller.exception_panel" class="Symfony\Bundle\WebProfilerBundle\Controller\ExceptionPanelController" public="true">
+            <argument type="service" id="error_renderer.renderer.html" />
             <argument type="service" id="profiler" on-invalid="null" />
-            <argument type="service" id="twig" />
-            <argument>%kernel.debug%</argument>
-            <argument type="service" id="debug.file_link_formatter" />
         </service>
 
         <service id="web_profiler.csp.handler" class="Symfony\Bundle\WebProfilerBundle\Csp\ContentSecurityPolicyHandler">

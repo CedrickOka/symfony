@@ -116,7 +116,7 @@ class ResourceCheckerConfigCache implements ConfigCacheInterface
      *
      * @throws \RuntimeException When cache file can't be written
      */
-    public function write($content, array $metadata = null)
+    public function write(string $content, array $metadata = null)
     {
         $mode = 0666;
         $umask = umask();
@@ -144,22 +144,20 @@ class ResourceCheckerConfigCache implements ConfigCacheInterface
 
     /**
      * Gets the meta file path.
-     *
-     * @return string The meta file path
      */
-    private function getMetaFile()
+    private function getMetaFile(): string
     {
         return $this->file.'.meta';
     }
 
-    private function safelyUnserialize($file)
+    private function safelyUnserialize(string $file)
     {
-        $e = null;
         $meta = false;
+        $content = file_get_contents($file);
         $signalingException = new \UnexpectedValueException();
-        $prevUnserializeHandler = ini_set('unserialize_callback_func', '');
+        $prevUnserializeHandler = ini_set('unserialize_callback_func', self::class.'::handleUnserializeCallback');
         $prevErrorHandler = set_error_handler(function ($type, $msg, $file, $line, $context = []) use (&$prevErrorHandler, $signalingException) {
-            if (E_WARNING === $type && 'Class __PHP_Incomplete_Class has no unserializer' === $msg) {
+            if (__FILE__ === $file) {
                 throw $signalingException;
             }
 
@@ -167,7 +165,7 @@ class ResourceCheckerConfigCache implements ConfigCacheInterface
         });
 
         try {
-            $meta = unserialize(file_get_contents($file));
+            $meta = unserialize($content);
         } catch (\Throwable $e) {
             if ($e !== $signalingException) {
                 throw $e;
@@ -178,5 +176,13 @@ class ResourceCheckerConfigCache implements ConfigCacheInterface
         }
 
         return $meta;
+    }
+
+    /**
+     * @internal
+     */
+    public static function handleUnserializeCallback($class)
+    {
+        trigger_error('Class not found: '.$class);
     }
 }

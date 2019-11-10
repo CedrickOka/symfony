@@ -16,32 +16,28 @@ use Symfony\Component\Intl\Intl;
 
 class IntlTest extends TestCase
 {
+    private $defaultLocale;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->defaultLocale = \Locale::getDefault();
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        \Locale::setDefault($this->defaultLocale);
+    }
+
     /**
      * @requires extension intl
      */
     public function testIsExtensionLoadedChecksIfIntlExtensionIsLoaded()
     {
         $this->assertTrue(Intl::isExtensionLoaded());
-    }
-
-    public function testGetCurrencyBundleCreatesTheCurrencyBundle()
-    {
-        $this->assertInstanceOf('Symfony\Component\Intl\ResourceBundle\CurrencyBundleInterface', Intl::getCurrencyBundle());
-    }
-
-    public function testGetLanguageBundleCreatesTheLanguageBundle()
-    {
-        $this->assertInstanceOf('Symfony\Component\Intl\ResourceBundle\LanguageBundleInterface', Intl::getLanguageBundle());
-    }
-
-    public function testGetLocaleBundleCreatesTheLocaleBundle()
-    {
-        $this->assertInstanceOf('Symfony\Component\Intl\ResourceBundle\LocaleBundleInterface', Intl::getLocaleBundle());
-    }
-
-    public function testGetRegionBundleCreatesTheRegionBundle()
-    {
-        $this->assertInstanceOf('Symfony\Component\Intl\ResourceBundle\LocaleBundleInterface', Intl::getLocaleBundle());
     }
 
     public function testGetIcuVersionReadsTheVersionOfInstalledIcuLibrary()
@@ -61,24 +57,6 @@ class IntlTest extends TestCase
 
     public function testGetDataDirectoryReturnsThePathToIcuData()
     {
-        $this->assertTrue(is_dir(Intl::getDataDirectory()));
-    }
-
-    /**
-     * @requires extension intl
-     */
-    public function testLocaleAliasesAreLoaded()
-    {
-        \Locale::setDefault('zh_TW');
-        $countryNameZhTw = Intl::getRegionBundle()->getCountryName('AD');
-
-        \Locale::setDefault('zh_Hant_TW');
-        $countryNameHantZhTw = Intl::getRegionBundle()->getCountryName('AD');
-
-        \Locale::setDefault('zh');
-        $countryNameZh = Intl::getRegionBundle()->getCountryName('AD');
-
-        $this->assertSame($countryNameZhTw, $countryNameHantZhTw, 'zh_TW is an alias to zh_Hant_TW');
-        $this->assertNotSame($countryNameZh, $countryNameZhTw, 'zh_TW does not fall back to zh');
+        $this->assertDirectoryExists(Intl::getDataDirectory());
     }
 }

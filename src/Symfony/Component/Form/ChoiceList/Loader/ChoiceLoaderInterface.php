@@ -28,15 +28,15 @@ interface ChoiceLoaderInterface
      * Loads a list of choices.
      *
      * Optionally, a callable can be passed for generating the choice values.
-     * The callable receives the choice as first and the array key as the second
-     * argument.
+     * The callable receives the choice as only argument.
+     * Null may be passed when the choice list contains the empty value.
      *
      * @param callable|null $value The callable which generates the values
      *                             from choices
      *
      * @return ChoiceListInterface The loaded choice list
      */
-    public function loadChoiceList($value = null);
+    public function loadChoiceList(callable $value = null);
 
     /**
      * Loads the choices corresponding to the given values.
@@ -45,8 +45,8 @@ interface ChoiceLoaderInterface
      * corresponding values in the given array.
      *
      * Optionally, a callable can be passed for generating the choice values.
-     * The callable receives the choice as first and the array key as the second
-     * argument.
+     * The callable receives the choice as only argument.
+     * Null may be passed when the choice list contains the empty value.
      *
      * @param string[]      $values An array of choice values. Non-existing
      *                              values in this array are ignored
@@ -54,7 +54,7 @@ interface ChoiceLoaderInterface
      *
      * @return array An array of choices
      */
-    public function loadChoicesForValues(array $values, $value = null);
+    public function loadChoicesForValues(array $values, callable $value = null);
 
     /**
      * Loads the values corresponding to the given choices.
@@ -63,8 +63,8 @@ interface ChoiceLoaderInterface
      * corresponding choices in the given array.
      *
      * Optionally, a callable can be passed for generating the choice values.
-     * The callable receives the choice as first and the array key as the second
-     * argument.
+     * The callable receives the choice as only argument.
+     * Null may be passed when the choice list contains the empty value.
      *
      * @param array         $choices An array of choices. Non-existing choices in
      *                               this array are ignored
@@ -72,5 +72,5 @@ interface ChoiceLoaderInterface
      *
      * @return string[] An array of choice values
      */
-    public function loadValuesForChoices(array $choices, $value = null);
+    public function loadValuesForChoices(array $choices, callable $value = null);
 }

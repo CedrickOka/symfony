@@ -251,7 +251,7 @@ class ChoiceType extends AbstractType
     {
         $emptyData = function (Options $options) {
             if ($options['expanded'] && !$options['multiple']) {
-                return;
+                return null;
             }
 
             if ($options['multiple']) {
@@ -268,13 +268,13 @@ class ChoiceType extends AbstractType
         $placeholderNormalizer = function (Options $options, $placeholder) {
             if ($options['multiple']) {
                 // never use an empty value for this case
-                return;
+                return null;
             } elseif ($options['required'] && ($options['expanded'] || isset($options['attr']['size']) && $options['attr']['size'] > 1)) {
                 // placeholder for required radio buttons or a select with size > 1 does not make sense
-                return;
+                return null;
             } elseif (false === $placeholder) {
                 // an empty value should be added but the user decided otherwise
-                return;
+                return null;
             } elseif ($options['expanded'] && '' === $placeholder) {
                 // never use an empty label for radio buttons
                 return 'None';
@@ -311,8 +311,8 @@ class ChoiceType extends AbstractType
             'placeholder' => $placeholderDefault,
             'error_bubbling' => false,
             'compound' => $compound,
-            // The view data is always a string, even if the "data" option
-            // is manually set to an object.
+            // The view data is always a string or an array of strings,
+            // even if the "data" option is manually set to an object.
             // See https://github.com/symfony/symfony/pull/5582
             'data_class' => null,
             'choice_translation_domain' => true,
@@ -362,9 +362,6 @@ class ChoiceType extends AbstractType
         }
     }
 
-    /**
-     * @return mixed
-     */
     private function addSubForm(FormBuilderInterface $builder, string $name, ChoiceView $choiceView, array $options)
     {
         $choiceOpts = [

@@ -11,14 +11,16 @@
 
 namespace Symfony\Component\Config\Resource;
 
-use Symfony\Component\DependencyInjection\ServiceSubscriberInterface as LegacyServiceSubscriberInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\Messenger\Handler\MessageSubscriberInterface;
 use Symfony\Contracts\Service\ServiceSubscriberInterface;
 
 /**
  * @author Nicolas Grekas <p@tchwork.com>
+ *
+ * @final
  */
-class ReflectionClassResource implements SelfCheckingResourceInterface, \Serializable
+class ReflectionClassResource implements SelfCheckingResourceInterface
 {
     private $files = [];
     private $className;
@@ -33,7 +35,10 @@ class ReflectionClassResource implements SelfCheckingResourceInterface, \Seriali
         $this->excludedVendors = $excludedVendors;
     }
 
-    public function isFresh($timestamp)
+    /**
+     * {@inheritdoc}
+     */
+    public function isFresh(int $timestamp): bool
     {
         if (null === $this->hash) {
             $this->hash = $this->computeHash();
@@ -53,24 +58,22 @@ class ReflectionClassResource implements SelfCheckingResourceInterface, \Seriali
         return true;
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return 'reflection.'.$this->className;
     }
 
-    public function serialize()
+    /**
+     * @internal
+     */
+    public function __sleep(): array
     {
         if (null === $this->hash) {
             $this->hash = $this->computeHash();
             $this->loadFiles($this->classReflector);
         }
 
-        return serialize([$this->files, $this->className, $this->hash]);
-    }
-
-    public function unserialize($serialized)
-    {
-        list($this->files, $this->className, $this->hash) = unserialize($serialized);
+        return ['files', 'className', 'hash'];
     }
 
     private function loadFiles(\ReflectionClass $class)
@@ -97,7 +100,7 @@ class ReflectionClassResource implements SelfCheckingResourceInterface, \Seriali
         } while ($class = $class->getParentClass());
     }
 
-    private function computeHash()
+    private function computeHash(): string
     {
         if (null === $this->classReflector) {
             try {
@@ -116,7 +119,7 @@ class ReflectionClassResource implements SelfCheckingResourceInterface, \Seriali
         return hash_final($hash);
     }
 
-    private function generateSignature(\ReflectionClass $class)
+    private function generateSignature(\ReflectionClass $class): iterable
     {
         yield $class->getDocComment();
         yield (int) $class->isFinal();
@@ -135,7 +138,7 @@ class ReflectionClassResource implements SelfCheckingResourceInterface, \Seriali
 
             foreach ($class->getProperties(\ReflectionProperty::IS_PUBLIC | \ReflectionProperty::IS_PROTECTED) as $p) {
                 yield $p->getDocComment().$p;
-                yield print_r($defaults[$p->name], true);
+                yield print_r(isset($defaults[$p->name]) && !\is_object($defaults[$p->name]) ? $defaults[$p->name] : null, true);
             }
         }
 
@@ -158,10 +161,14 @@ class ReflectionClassResource implements SelfCheckingResourceInterface, \Seriali
             yield print_r($class->name::getSubscribedEvents(), true);
         }
 
-        if (interface_exists(LegacyServiceSubscriberInterface::class, false) && $class->isSubclassOf(LegacyServiceSubscriberInterface::class)) {
-            yield LegacyServiceSubscriberInterface::class;
-            yield print_r([$class->name, 'getSubscribedServices'](), true);
-        } elseif (interface_exists(ServiceSubscriberInterface::class, false) && $class->isSubclassOf(ServiceSubscriberInterface::class)) {
+        if (interface_exists(MessageSubscriberInterface::class, false) && $class->isSubclassOf(MessageSubscriberInterface::class)) {
+            yield MessageSubscriberInterface::class;
+            foreach ($class->name::getHandledMessages() as $key => $value) {
+                yield $key.print_r($value, true);
+            }
+        }
+
+        if (interface_exists(ServiceSubscriberInterface::class, false) && $class->isSubclassOf(ServiceSubscriberInterface::class)) {
             yield ServiceSubscriberInterface::class;
             yield print_r($class->name::getSubscribedServices(), true);
         }

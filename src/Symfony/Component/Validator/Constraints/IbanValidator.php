@@ -182,7 +182,7 @@ class IbanValidator extends ConstraintValidator
         }
 
         // ...have a format available
-        if (!array_key_exists($countryCode, self::$formats)) {
+        if (!\array_key_exists($countryCode, self::$formats)) {
             $this->context->buildViolation($constraint->message)
                 ->setParameter('{{ value }}', $this->formatValue($value))
                 ->setCode(Iban::NOT_SUPPORTED_COUNTRY_CODE_ERROR)
@@ -225,7 +225,7 @@ class IbanValidator extends ConstraintValidator
         }
     }
 
-    private static function toBigInt($string)
+    private static function toBigInt(string $string): string
     {
         $chars = str_split($string);
         $bigInt = '';
@@ -245,7 +245,7 @@ class IbanValidator extends ConstraintValidator
         return $bigInt;
     }
 
-    private static function bigModulo97($bigInt)
+    private static function bigModulo97(string $bigInt): int
     {
         $parts = str_split($bigInt, 7);
         $rest = 0;

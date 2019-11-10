@@ -60,7 +60,7 @@ class ContainerConfigurator extends AbstractConfigurator
         $this->container->loadFromExtension($namespace, static::processValue($config));
     }
 
-    final public function import(string $resource, string $type = null, bool $ignoreErrors = false)
+    final public function import(string $resource, string $type = null, $ignoreErrors = false)
     {
         $this->loader->setCurrentDir(\dirname($this->path));
         $this->loader->import($resource, $type, $ignoreErrors, $this->file);
@@ -116,9 +116,17 @@ function iterator(array $values): IteratorArgument
 /**
  * Creates a lazy iterator by tag name.
  */
-function tagged(string $tag): TaggedIteratorArgument
+function tagged_iterator(string $tag, string $indexAttribute = null, string $defaultIndexMethod = null, string $defaultPriorityMethod = null): TaggedIteratorArgument
 {
-    return new TaggedIteratorArgument($tag);
+    return new TaggedIteratorArgument($tag, $indexAttribute, $defaultIndexMethod, false, $defaultPriorityMethod);
+}
+
+/**
+ * Creates a service locator by tag name.
+ */
+function tagged_locator(string $tag, string $indexAttribute = null, string $defaultIndexMethod = null): ServiceLocatorArgument
+{
+    return new ServiceLocatorArgument(new TaggedIteratorArgument($tag, $indexAttribute, $defaultIndexMethod, true));
 }
 
 /**

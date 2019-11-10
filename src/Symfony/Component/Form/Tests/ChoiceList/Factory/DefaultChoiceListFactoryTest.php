@@ -77,6 +77,11 @@ class DefaultChoiceListFactoryTest extends TestCase
         return $this->obj1 === $object || $this->obj2 === $object ? 'Group 1' : 'Group 2';
     }
 
+    public function getGroupArray($object)
+    {
+        return $this->obj1 === $object || $this->obj2 === $object ? ['Group 1', 'Group 2'] : ['Group 3'];
+    }
+
     public function getGroupAsObject($object)
     {
         return $this->obj1 === $object || $this->obj2 === $object
@@ -84,15 +89,13 @@ class DefaultChoiceListFactoryTest extends TestCase
             : new DefaultChoiceListFactoryTest_Castable('Group 2');
     }
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->obj1 = (object) ['label' => 'A', 'index' => 'w', 'value' => 'a', 'preferred' => false, 'group' => 'Group 1', 'attr' => []];
         $this->obj2 = (object) ['label' => 'B', 'index' => 'x', 'value' => 'b', 'preferred' => true, 'group' => 'Group 1', 'attr' => ['attr1' => 'value1']];
         $this->obj3 = (object) ['label' => 'C', 'index' => 'y', 'value' => 1, 'preferred' => true, 'group' => 'Group 2', 'attr' => ['attr2' => 'value2']];
         $this->obj4 = (object) ['label' => 'D', 'index' => 'z', 'value' => 2, 'preferred' => false, 'group' => 'Group 2', 'attr' => []];
-        $this->list = new ArrayChoiceList(
-            ['A' => $this->obj1, 'B' => $this->obj2, 'C' => $this->obj3, 'D' => $this->obj4]
-        );
+        $this->list = new ArrayChoiceList(['A' => $this->obj1, 'B' => $this->obj2, 'C' => $this->obj3, 'D' => $this->obj4]);
         $this->factory = new DefaultChoiceListFactory();
     }
 
@@ -106,9 +109,7 @@ class DefaultChoiceListFactoryTest extends TestCase
 
     public function testCreateFromChoicesFlat()
     {
-        $list = $this->factory->createListFromChoices(
-            ['A' => $this->obj1, 'B' => $this->obj2, 'C' => $this->obj3, 'D' => $this->obj4]
-        );
+        $list = $this->factory->createListFromChoices(['A' => $this->obj1, 'B' => $this->obj2, 'C' => $this->obj3, 'D' => $this->obj4]);
 
         $this->assertObjectListWithGeneratedValues($list);
     }
@@ -144,12 +145,10 @@ class DefaultChoiceListFactoryTest extends TestCase
 
     public function testCreateFromChoicesGrouped()
     {
-        $list = $this->factory->createListFromChoices(
-            [
-                'Group 1' => ['A' => $this->obj1, 'B' => $this->obj2],
-                'Group 2' => ['C' => $this->obj3, 'D' => $this->obj4],
-            ]
-        );
+        $list = $this->factory->createListFromChoices([
+            'Group 1' => ['A' => $this->obj1, 'B' => $this->obj2],
+            'Group 2' => ['C' => $this->obj3, 'D' => $this->obj4],
+        ]);
 
         $this->assertObjectListWithGeneratedValues($list);
     }
@@ -233,6 +232,28 @@ class DefaultChoiceListFactoryTest extends TestCase
         );
 
         $this->assertFlatView($view);
+    }
+
+    public function testCreateViewFlatPreferredChoicesSameOrder()
+    {
+        $view = $this->factory->createView(
+            $this->list,
+            [$this->obj2, $this->obj1, $this->obj4, $this->obj3]
+        );
+
+        $preferredLabels = array_map(static function (ChoiceView $view): string {
+            return $view->label;
+        }, $view->preferredChoices);
+
+        $this->assertSame(
+            [
+                1 => 'B',
+                0 => 'A',
+                3 => 'D',
+                2 => 'C',
+            ],
+            $preferredLabels
+        );
     }
 
     public function testCreateViewFlatPreferredChoicesEmptyArray()
@@ -460,6 +481,19 @@ class DefaultChoiceListFactoryTest extends TestCase
         );
 
         $this->assertGroupedView($view);
+    }
+
+    public function testCreateViewFlatGroupByAsCallableReturnsArray()
+    {
+        $view = $this->factory->createView(
+            $this->list,
+            [],
+            null, // label
+            null, // index
+            [$this, 'getGroupArray']
+        );
+
+        $this->assertGroupedViewWithChoiceDuplication($view);
     }
 
     public function testCreateViewFlatGroupByObjectThatCanBeCastToString()
@@ -705,6 +739,8 @@ class DefaultChoiceListFactoryTest extends TestCase
         $this->assertEquals(new ChoiceListView(
                 [
                     0 => new ChoiceView($this->obj1, '0', 'A'),
+                    1 => new ChoiceView($this->obj2, '1', 'B'),
+                    2 => new ChoiceView($this->obj3, '2', 'C'),
                     3 => new ChoiceView($this->obj4, '3', 'D'),
                 ], [
                     1 => new ChoiceView($this->obj2, '1', 'B'),
@@ -718,6 +754,8 @@ class DefaultChoiceListFactoryTest extends TestCase
         $this->assertEquals(new ChoiceListView(
                 [
                     'w' => new ChoiceView($this->obj1, '0', 'A'),
+                    'x' => new ChoiceView($this->obj2, '1', 'B'),
+                    'y' => new ChoiceView($this->obj3, '2', 'C'),
                     'z' => new ChoiceView($this->obj4, '3', 'D'),
                 ], [
                     'x' => new ChoiceView($this->obj2, '1', 'B'),
@@ -731,6 +769,18 @@ class DefaultChoiceListFactoryTest extends TestCase
         $this->assertEquals(new ChoiceListView(
                 [
                     0 => new ChoiceView($this->obj1, '0', 'A'),
+                    1 => new ChoiceView(
+                        $this->obj2,
+                        '1',
+                        'B',
+                        ['attr1' => 'value1']
+                    ),
+                    2 => new ChoiceView(
+                        $this->obj3,
+                        '2',
+                        'C',
+                        ['attr2' => 'value2']
+                    ),
                     3 => new ChoiceView($this->obj4, '3', 'D'),
                 ], [
                     1 => new ChoiceView(
@@ -755,11 +805,17 @@ class DefaultChoiceListFactoryTest extends TestCase
                 [
                     'Group 1' => new ChoiceGroupView(
                         'Group 1',
-                        [0 => new ChoiceView($this->obj1, '0', 'A')]
+                        [
+                            0 => new ChoiceView($this->obj1, '0', 'A'),
+                            1 => new ChoiceView($this->obj2, '1', 'B'),
+                        ]
                     ),
                     'Group 2' => new ChoiceGroupView(
                         'Group 2',
-                        [3 => new ChoiceView($this->obj4, '3', 'D')]
+                        [
+                            2 => new ChoiceView($this->obj3, '2', 'C'),
+                            3 => new ChoiceView($this->obj4, '3', 'D'),
+                        ]
                     ),
                 ], [
                     'Group 1' => new ChoiceGroupView(
@@ -773,6 +829,26 @@ class DefaultChoiceListFactoryTest extends TestCase
                 ]
         ), $view);
     }
+
+    private function assertGroupedViewWithChoiceDuplication($view)
+    {
+        $this->assertEquals(new ChoiceListView(
+            [
+                'Group 1' => new ChoiceGroupView(
+                    'Group 1',
+                    [0 => new ChoiceView($this->obj1, '0', 'A'), 2 => new ChoiceView($this->obj2, '1', 'B')]
+                ),
+                'Group 2' => new ChoiceGroupView(
+                    'Group 2',
+                    [1 => new ChoiceView($this->obj1, '0', 'A'), 3 => new ChoiceView($this->obj2, '1', 'B')]
+                ),
+                'Group 3' => new ChoiceGroupView(
+                    'Group 3',
+                    [4 => new ChoiceView($this->obj3, '2', 'C'), 5 => new ChoiceView($this->obj4, '3', 'D')]
+                ),
+            ], []
+        ), $view);
+    }
 }
 
 class DefaultChoiceListFactoryTest_Castable
@@ -784,7 +860,7 @@ class DefaultChoiceListFactoryTest_Castable
         $this->property = $property;
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->property;
     }

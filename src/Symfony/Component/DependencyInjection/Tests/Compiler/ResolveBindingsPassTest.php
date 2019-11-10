@@ -13,9 +13,13 @@ namespace Symfony\Component\DependencyInjection\Tests\Compiler;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\Argument\BoundArgument;
+use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\Compiler\AutowireRequiredMethodsPass;
+use Symfony\Component\DependencyInjection\Compiler\DefinitionErrorExceptionPass;
 use Symfony\Component\DependencyInjection\Compiler\ResolveBindingsPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CaseSensitiveClass;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\NamedArgumentsDummy;
@@ -30,7 +34,10 @@ class ResolveBindingsPassTest extends TestCase
     {
         $container = new ContainerBuilder();
 
-        $bindings = [CaseSensitiveClass::class => new BoundArgument(new Reference('foo'))];
+        $bindings = [
+            CaseSensitiveClass::class => new BoundArgument(new Reference('foo')),
+            'iterable $objects' => new BoundArgument(new TaggedIteratorArgument('tag.name'), true, BoundArgument::INSTANCEOF_BINDING),
+        ];
 
         $definition = $container->register(NamedArgumentsDummy::class, NamedArgumentsDummy::class);
         $definition->setArguments([1 => '123']);
@@ -43,16 +50,14 @@ class ResolveBindingsPassTest extends TestCase
         $pass = new ResolveBindingsPass();
         $pass->process($container);
 
-        $this->assertEquals([new Reference('foo'), '123'], $definition->getArguments());
+        $this->assertEquals([0 => new Reference('foo'), 1 => '123', 4 => new TaggedIteratorArgument('tag.name')], $definition->getArguments());
         $this->assertEquals([['setSensitiveClass', [new Reference('foo')]]], $definition->getMethodCalls());
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     * @expectedExceptionMessage Unused binding "$quz" in service "Symfony\Component\DependencyInjection\Tests\Fixtures\NamedArgumentsDummy".
-     */
     public function testUnusedBinding()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('A binding is configured for an argument named "$quz" for service "Symfony\Component\DependencyInjection\Tests\Fixtures\NamedArgumentsDummy", but no corresponding argument has been found. It may be unused and should be removed, or it may have a typo.');
         $container = new ContainerBuilder();
 
         $definition = $container->register(NamedArgumentsDummy::class, NamedArgumentsDummy::class);
@@ -62,12 +67,11 @@ class ResolveBindingsPassTest extends TestCase
         $pass->process($container);
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     * @expectedExceptionMessageRegexp Unused binding "$quz" in service [\s\S]+ Invalid service ".*\\ParentNotExists": class NotExists not found\.
-     */
     public function testMissingParent()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('A binding is configured for an argument named "$quz" for service "Symfony\Component\DependencyInjection\Tests\Fixtures\ParentNotExists", but no corresponding argument has been found. It may be unused and should be removed, or it may have a typo.');
+
         $container = new ContainerBuilder();
 
         $definition = $container->register(ParentNotExists::class, ParentNotExists::class);
@@ -112,27 +116,42 @@ class ResolveBindingsPassTest extends TestCase
         $this->assertEquals([['setDefaultLocale', ['fr']]], $definition->getMethodCalls());
     }
 
-    public function testTupleBinding()
+    public function testWithNonExistingSetterAndBinding()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\RuntimeException');
+        $this->expectExceptionMessage('Invalid service "Symfony\Component\DependencyInjection\Tests\Fixtures\NamedArgumentsDummy": method "setLogger()" does not exist.');
         $container = new ContainerBuilder();
 
         $bindings = [
-            '$c' => new BoundArgument(new Reference('bar')),
-            CaseSensitiveClass::class.'$c' => new BoundArgument(new Reference('foo')),
+            '$c' => (new Definition('logger'))->setFactory('logger'),
         ];
 
         $definition = $container->register(NamedArgumentsDummy::class, NamedArgumentsDummy::class);
-        $definition->addMethodCall('setSensitiveClass');
-        $definition->addMethodCall('setAnotherC');
+        $definition->addMethodCall('setLogger');
         $definition->setBindings($bindings);
 
         $pass = new ResolveBindingsPass();
         $pass->process($container);
+    }
 
-        $expected = [
-            ['setSensitiveClass', [new Reference('foo')]],
-            ['setAnotherC', [new Reference('bar')]],
-        ];
-        $this->assertEquals($expected, $definition->getMethodCalls());
+    public function testSyntheticServiceWithBind()
+    {
+        $container = new ContainerBuilder();
+        $argument = new BoundArgument('bar');
+
+        $container->register('foo', 'stdClass')
+            ->addArgument(new Reference('synthetic.service'));
+
+        $container->register('synthetic.service')
+            ->setSynthetic(true)
+            ->setBindings(['$apiKey' => $argument]);
+
+        $container->register(NamedArgumentsDummy::class, NamedArgumentsDummy::class)
+            ->setBindings(['$apiKey' => $argument]);
+
+        (new ResolveBindingsPass())->process($container);
+        (new DefinitionErrorExceptionPass())->process($container);
+
+        $this->assertSame([1 => 'bar'], $container->getDefinition(NamedArgumentsDummy::class)->getArguments());
     }
 }

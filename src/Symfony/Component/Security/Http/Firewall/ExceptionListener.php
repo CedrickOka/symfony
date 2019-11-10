@@ -15,7 +15,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Event\GetResponseForExceptionEvent;
+use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
@@ -26,6 +26,7 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Security\Core\Exception\AccountStatusException;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Core\Exception\InsufficientAuthenticationException;
+use Symfony\Component\Security\Core\Exception\LazyResponseException;
 use Symfony\Component\Security\Core\Exception\LogoutException;
 use Symfony\Component\Security\Core\Security;
 use Symfony\Component\Security\Http\Authorization\AccessDeniedHandlerInterface;
@@ -38,6 +39,8 @@ use Symfony\Component\Security\Http\Util\TargetPathTrait;
  * Response instances.
  *
  * @author Fabien Potencier <fabien@symfony.com>
+ *
+ * @final
  */
 class ExceptionListener
 {
@@ -85,21 +88,37 @@ class ExceptionListener
     /**
      * Handles security related exceptions.
      */
-    public function onKernelException(GetResponseForExceptionEvent $event)
+    public function onKernelException(ExceptionEvent $event)
     {
         $exception = $event->getException();
         do {
             if ($exception instanceof AuthenticationException) {
-                return $this->handleAuthenticationException($event, $exception);
-            } elseif ($exception instanceof AccessDeniedException) {
-                return $this->handleAccessDeniedException($event, $exception);
-            } elseif ($exception instanceof LogoutException) {
-                return $this->handleLogoutException($exception);
+                $this->handleAuthenticationException($event, $exception);
+
+                return;
+            }
+
+            if ($exception instanceof AccessDeniedException) {
+                $this->handleAccessDeniedException($event, $exception);
+
+                return;
+            }
+
+            if ($exception instanceof LazyResponseException) {
+                $event->setResponse($exception->getResponse());
+
+                return;
+            }
+
+            if ($exception instanceof LogoutException) {
+                $this->handleLogoutException($exception);
+
+                return;
             }
         } while (null !== $exception = $exception->getPrevious());
     }
 
-    private function handleAuthenticationException(GetResponseForExceptionEvent $event, AuthenticationException $exception): void
+    private function handleAuthenticationException(ExceptionEvent $event, AuthenticationException $exception): void
     {
         if (null !== $this->logger) {
             $this->logger->info('An AuthenticationException was thrown; redirecting to authentication entry point.', ['exception' => $exception]);
@@ -113,7 +132,7 @@ class ExceptionListener
         }
     }
 
-    private function handleAccessDeniedException(GetResponseForExceptionEvent $event, AccessDeniedException $exception)
+    private function handleAccessDeniedException(ExceptionEvent $event, AccessDeniedException $exception)
     {
         $event->setException(new AccessDeniedHttpException($exception->getMessage(), $exception));
 
@@ -206,7 +225,7 @@ class ExceptionListener
     protected function setTargetPath(Request $request)
     {
         // session isn't required when using HTTP basic authentication mechanism for example
-        if ($request->hasSession() && $request->isMethodSafe(false) && !$request->isXmlHttpRequest()) {
+        if ($request->hasSession() && $request->isMethodSafe() && !$request->isXmlHttpRequest()) {
             $this->saveTargetPath($request->getSession(), $this->providerKey, $request->getUri());
         }
     }

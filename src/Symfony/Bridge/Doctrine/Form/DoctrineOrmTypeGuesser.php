@@ -36,7 +36,7 @@ class DoctrineOrmTypeGuesser implements FormTypeGuesserInterface
     /**
      * {@inheritdoc}
      */
-    public function guessType($class, $property)
+    public function guessType(string $class, string $property)
     {
         if (!$ret = $this->getMetadata($class)) {
             return new TypeGuess('Symfony\Component\Form\Extension\Core\Type\TextType', [], Guess::LOW_CONFIDENCE);
@@ -75,6 +75,7 @@ class DoctrineOrmTypeGuesser implements FormTypeGuesserInterface
             case 'time_immutable':
                 return new TypeGuess('Symfony\Component\Form\Extension\Core\Type\TimeType', ['input' => 'datetime_immutable'], Guess::HIGH_CONFIDENCE);
             case Type::DECIMAL:
+                return new TypeGuess('Symfony\Component\Form\Extension\Core\Type\NumberType', ['input' => 'string'], Guess::MEDIUM_CONFIDENCE);
             case Type::FLOAT:
                 return new TypeGuess('Symfony\Component\Form\Extension\Core\Type\NumberType', [], Guess::MEDIUM_CONFIDENCE);
             case Type::INTEGER:
@@ -93,12 +94,12 @@ class DoctrineOrmTypeGuesser implements FormTypeGuesserInterface
     /**
      * {@inheritdoc}
      */
-    public function guessRequired($class, $property)
+    public function guessRequired(string $class, string $property)
     {
         $classMetadatas = $this->getMetadata($class);
 
         if (!$classMetadatas) {
-            return;
+            return null;
         }
 
         /** @var ClassMetadataInfo $classMetadata */
@@ -126,12 +127,14 @@ class DoctrineOrmTypeGuesser implements FormTypeGuesserInterface
 
             return new ValueGuess(!$mapping['joinColumns'][0]['nullable'], Guess::HIGH_CONFIDENCE);
         }
+
+        return null;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function guessMaxLength($class, $property)
+    public function guessMaxLength(string $class, string $property)
     {
         $ret = $this->getMetadata($class);
         if ($ret && isset($ret[0]->fieldMappings[$property]) && !$ret[0]->hasAssociation($property)) {
@@ -145,12 +148,14 @@ class DoctrineOrmTypeGuesser implements FormTypeGuesserInterface
                 return new ValueGuess(null, Guess::MEDIUM_CONFIDENCE);
             }
         }
+
+        return null;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function guessPattern($class, $property)
+    public function guessPattern(string $class, string $property)
     {
         $ret = $this->getMetadata($class);
         if ($ret && isset($ret[0]->fieldMappings[$property]) && !$ret[0]->hasAssociation($property)) {
@@ -158,14 +163,16 @@ class DoctrineOrmTypeGuesser implements FormTypeGuesserInterface
                 return new ValueGuess(null, Guess::MEDIUM_CONFIDENCE);
             }
         }
+
+        return null;
     }
 
-    protected function getMetadata($class)
+    protected function getMetadata(string $class)
     {
         // normalize class name
         $class = self::getRealClass(ltrim($class, '\\'));
 
-        if (array_key_exists($class, $this->cache)) {
+        if (\array_key_exists($class, $this->cache)) {
             return $this->cache[$class];
         }
 
@@ -179,6 +186,8 @@ class DoctrineOrmTypeGuesser implements FormTypeGuesserInterface
                 // not an entity or mapped super class, using Doctrine ORM 2.2
             }
         }
+
+        return null;
     }
 
     private static function getRealClass(string $class): string

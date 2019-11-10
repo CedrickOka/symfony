@@ -29,7 +29,7 @@ class RouterMatchCommandTest extends TestCase
         $ret = $tester->execute(['path_info' => '/foo', 'foo'], ['decorated' => false]);
 
         $this->assertEquals(0, $ret, 'Returns 0 in case of success');
-        $this->assertContains('Route Name   | foo', $tester->getDisplay());
+        $this->assertStringContainsString('Route Name   | foo', $tester->getDisplay());
     }
 
     public function testWithNotMatchPath()
@@ -38,13 +38,10 @@ class RouterMatchCommandTest extends TestCase
         $ret = $tester->execute(['path_info' => '/test', 'foo'], ['decorated' => false]);
 
         $this->assertEquals(1, $ret, 'Returns 1 in case of failure');
-        $this->assertContains('None of the routes match the path "/test"', $tester->getDisplay());
+        $this->assertStringContainsString('None of the routes match the path "/test"', $tester->getDisplay());
     }
 
-    /**
-     * @return CommandTester
-     */
-    private function createCommandTester()
+    private function createCommandTester(): CommandTester
     {
         $application = new Application($this->getKernel());
         $application->add(new RouterMatchCommand($this->getRouter()));
@@ -62,11 +59,11 @@ class RouterMatchCommandTest extends TestCase
         $router
             ->expects($this->any())
             ->method('getRouteCollection')
-            ->will($this->returnValue($routeCollection));
+            ->willReturn($routeCollection);
         $router
             ->expects($this->any())
             ->method('getContext')
-            ->will($this->returnValue($requestContext));
+            ->willReturn($requestContext);
 
         return $router;
     }
@@ -77,13 +74,9 @@ class RouterMatchCommandTest extends TestCase
         $container
             ->expects($this->atLeastOnce())
             ->method('has')
-            ->will($this->returnCallback(function ($id) {
-                if ('console.command_loader' === $id) {
-                    return false;
-                }
-
-                return true;
-            }))
+            ->willReturnCallback(function ($id) {
+                return 'console.command_loader' !== $id;
+            })
         ;
         $container
             ->expects($this->any())

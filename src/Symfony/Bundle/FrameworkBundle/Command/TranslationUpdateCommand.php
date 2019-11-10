@@ -36,6 +36,10 @@ use Symfony\Component\Translation\Writer\TranslationWriterInterface;
  */
 class TranslationUpdateCommand extends Command
 {
+    private const ASC = 'asc';
+    private const DESC = 'desc';
+    private const SORT_ORDERS = [self::ASC, self::DESC];
+
     protected static $defaultName = 'translation:update';
 
     private $writer;
@@ -44,8 +48,10 @@ class TranslationUpdateCommand extends Command
     private $defaultLocale;
     private $defaultTransPath;
     private $defaultViewsPath;
+    private $transPaths;
+    private $viewsPaths;
 
-    public function __construct(TranslationWriterInterface $writer, TranslationReaderInterface $reader, ExtractorInterface $extractor, string $defaultLocale, string $defaultTransPath = null, string $defaultViewsPath = null)
+    public function __construct(TranslationWriterInterface $writer, TranslationReaderInterface $reader, ExtractorInterface $extractor, string $defaultLocale, string $defaultTransPath = null, string $defaultViewsPath = null, array $transPaths = [], array $viewsPaths = [])
     {
         parent::__construct();
 
@@ -55,6 +61,8 @@ class TranslationUpdateCommand extends Command
         $this->defaultLocale = $defaultLocale;
         $this->defaultTransPath = $defaultTransPath;
         $this->defaultViewsPath = $defaultViewsPath;
+        $this->transPaths = $transPaths;
+        $this->viewsPaths = $viewsPaths;
     }
 
     /**
@@ -74,22 +82,31 @@ class TranslationUpdateCommand extends Command
                 new InputOption('clean', null, InputOption::VALUE_NONE, 'Should clean not found messages'),
                 new InputOption('domain', null, InputOption::VALUE_OPTIONAL, 'Specify the domain to update'),
                 new InputOption('xliff-version', null, InputOption::VALUE_OPTIONAL, 'Override the default xliff version', '1.2'),
+                new InputOption('sort', null, InputOption::VALUE_OPTIONAL, 'Return list of messages sorted alphabetically'),
             ])
             ->setDescription('Updates the translation file')
             ->setHelp(<<<'EOF'
 The <info>%command.name%</info> command extracts translation strings from templates
-of a given bundle or the default translations directory. It can display them or merge the new ones into the translation files.
+of a given bundle or the default translations directory. It can display them or merge
+the new ones into the translation files.
 
 When new translation strings are found it can automatically add a prefix to the translation
 message.
 
 Example running against a Bundle (AcmeBundle)
+
   <info>php %command.full_name% --dump-messages en AcmeBundle</info>
   <info>php %command.full_name% --force --prefix="new_" fr AcmeBundle</info>
 
 Example running against default messages directory
+
   <info>php %command.full_name% --dump-messages en</info>
   <info>php %command.full_name% --force --prefix="new_" fr</info>
+
+You can sort the output with the <comment>--sort</> flag:
+
+    <info>php %command.full_name% --dump-messages --sort=asc en AcmeBundle</info>
+    <info>php %command.full_name% --dump-messages --sort=desc fr</info>
 EOF
             )
         ;
@@ -98,7 +115,7 @@ EOF
     /**
      * {@inheritdoc}
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         $errorIo = $io->getErrorStyle();
@@ -119,28 +136,13 @@ EOF
         }
         /** @var KernelInterface $kernel */
         $kernel = $this->getApplication()->getKernel();
-        $rootDir = $kernel->getContainer()->getParameter('kernel.root_dir');
 
         // Define Root Paths
-        $transPaths = [];
-        if (is_dir($dir = $rootDir.'/Resources/translations')) {
-            if ($dir !== $this->defaultTransPath) {
-                $notice = sprintf('Storing translations in the "%s" directory is deprecated since Symfony 4.2, ', $dir);
-                @trigger_error($notice.($this->defaultTransPath ? sprintf('use the "%s" directory instead.', $this->defaultTransPath) : 'configure and use "framework.translator.default_path" instead.'), E_USER_DEPRECATED);
-            }
-            $transPaths[] = $dir;
-        }
+        $transPaths = $this->transPaths;
         if ($this->defaultTransPath) {
             $transPaths[] = $this->defaultTransPath;
         }
-        $viewsPaths = [];
-        if (is_dir($dir = $rootDir.'/Resources/views')) {
-            if ($dir !== $this->defaultViewsPath) {
-                $notice = sprintf('Storing templates in the "%s" directory is deprecated since Symfony 4.2, ', $dir);
-                @trigger_error($notice.($this->defaultViewsPath ? sprintf('use the "%s" directory instead.', $this->defaultViewsPath) : 'configure and use "twig.default_path" instead.'), E_USER_DEPRECATED);
-            }
-            $viewsPaths[] = $dir;
-        }
+        $viewsPaths = $this->viewsPaths;
         if ($this->defaultViewsPath) {
             $viewsPaths[] = $this->defaultViewsPath;
         }
@@ -150,23 +152,14 @@ EOF
         if (null !== $input->getArgument('bundle')) {
             try {
                 $foundBundle = $kernel->getBundle($input->getArgument('bundle'));
-                $transPaths = [$foundBundle->getPath().'/Resources/translations'];
+                $bundleDir = $foundBundle->getPath();
+                $transPaths = [is_dir($bundleDir.'/Resources/translations') ? $bundleDir.'/Resources/translations' : $bundleDir.'/translations'];
+                $viewsPaths = [is_dir($bundleDir.'/Resources/views') ? $bundleDir.'/Resources/views' : $bundleDir.'/templates'];
                 if ($this->defaultTransPath) {
                     $transPaths[] = $this->defaultTransPath;
                 }
-                if (is_dir($dir = sprintf('%s/Resources/%s/translations', $rootDir, $foundBundle->getName()))) {
-                    $transPaths[] = $dir;
-                    $notice = sprintf('Storing translations files for "%s" in the "%s" directory is deprecated since Symfony 4.2, ', $foundBundle->getName(), $dir);
-                    @trigger_error($notice.($this->defaultTransPath ? sprintf('use the "%s" directory instead.', $this->defaultTransPath) : 'configure and use "framework.translator.default_path" instead.'), E_USER_DEPRECATED);
-                }
-                $viewsPaths = [$foundBundle->getPath().'/Resources/views'];
                 if ($this->defaultViewsPath) {
                     $viewsPaths[] = $this->defaultViewsPath;
-                }
-                if (is_dir($dir = sprintf('%s/Resources/%s/views', $rootDir, $foundBundle->getName()))) {
-                    $viewsPaths[] = $dir;
-                    $notice = sprintf('Storing templates for "%s" in the "%s" directory is deprecated since Symfony 4.2, ', $foundBundle->getName(), $dir);
-                    @trigger_error($notice.($this->defaultViewsPath ? sprintf('use the "%s" directory instead.', $this->defaultViewsPath) : 'configure and use "twig.default_path" instead.'), E_USER_DEPRECATED);
                 }
                 $currentName = $foundBundle->getName();
             } catch (\InvalidArgumentException $e) {
@@ -174,20 +167,7 @@ EOF
                 $path = $input->getArgument('bundle');
 
                 $transPaths = [$path.'/translations'];
-                if (is_dir($dir = $path.'/Resources/translations')) {
-                    if ($dir !== $this->defaultTransPath) {
-                        @trigger_error(sprintf('Storing translations in the "%s" directory is deprecated since Symfony 4.2, use the "%s" directory instead.', $dir, $path.'/translations'), E_USER_DEPRECATED);
-                    }
-                    $transPaths[] = $dir;
-                }
-
                 $viewsPaths = [$path.'/templates'];
-                if (is_dir($dir = $path.'/Resources/views')) {
-                    if ($dir !== $this->defaultViewsPath) {
-                        @trigger_error(sprintf('Storing templates in the "%s" directory is deprecated since Symfony 4.2, use the "%s" directory instead.', $dir, $path.'/templates'), E_USER_DEPRECATED);
-                    }
-                    $viewsPaths[] = $dir;
-                }
 
                 if (!is_dir($transPaths[0]) && !isset($transPaths[1])) {
                     throw new InvalidArgumentException(sprintf('"%s" is neither an enabled bundle nor a directory.', $transPaths[0]));
@@ -203,7 +183,7 @@ EOF
         $errorIo->comment('Parsing templates...');
         $this->extractor->setPrefix($input->getOption('prefix'));
         foreach ($viewsPaths as $path) {
-            if (is_dir($path)) {
+            if (is_dir($path) || is_file($path)) {
                 $this->extractor->extract($path, $extractedCatalogue);
             }
         }
@@ -231,7 +211,7 @@ EOF
         if (!\count($operation->getDomains())) {
             $errorIo->warning('No translation messages were found.');
 
-            return;
+            return 0;
         }
 
         $resultMessage = 'Translation files were successfully updated';
@@ -255,6 +235,21 @@ EOF
                 );
 
                 $domainMessagesCount = \count($list);
+
+                if ($sort = $input->getOption('sort')) {
+                    $sort = strtolower($sort);
+                    if (!\in_array($sort, self::SORT_ORDERS, true)) {
+                        $errorIo->error(['Wrong sort order', 'Supported formats are: '.implode(', ', self::SORT_ORDERS).'.']);
+
+                        return 1;
+                    }
+
+                    if (self::DESC === $sort) {
+                        rsort($list);
+                    } else {
+                        sort($list);
+                    }
+                }
 
                 $io->section(sprintf('Messages extracted for domain "<info>%s</info>" (%d message%s)', $domain, $domainMessagesCount, $domainMessagesCount > 1 ? 's' : ''));
                 $io->listing($list);
@@ -296,6 +291,8 @@ EOF
         }
 
         $errorIo->success($resultMessage.'.');
+
+        return 0;
     }
 
     private function filterCatalogue(MessageCatalogue $catalogue, string $domain): MessageCatalogue

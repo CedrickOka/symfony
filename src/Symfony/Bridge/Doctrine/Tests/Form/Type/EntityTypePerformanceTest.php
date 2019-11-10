@@ -30,17 +30,19 @@ class EntityTypePerformanceTest extends FormPerformanceTestCase
      */
     private $em;
 
+    protected static $supportedFeatureSetVersion = 404;
+
     protected function getExtensions()
     {
         $manager = $this->getMockBuilder('Doctrine\Common\Persistence\ManagerRegistry')->getMock();
 
         $manager->expects($this->any())
             ->method('getManager')
-            ->will($this->returnValue($this->em));
+            ->willReturn($this->em);
 
         $manager->expects($this->any())
             ->method('getManagerForClass')
-            ->will($this->returnValue($this->em));
+            ->willReturn($this->em);
 
         return [
             new CoreExtension(),
@@ -48,7 +50,7 @@ class EntityTypePerformanceTest extends FormPerformanceTestCase
         ];
     }
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->em = DoctrineTestHelper::createTestEntityManager();
 

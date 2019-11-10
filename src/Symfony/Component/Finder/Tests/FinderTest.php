@@ -347,6 +347,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
         $finder = $this->buildFinder();
         $this->assertSame($finder, $finder->ignoreVCS(false)->ignoreDotFiles(false));
         $this->assertIterator($this->toAbsolute([
+            '.gitignore',
             '.git',
             'foo',
             'foo/bar.tmp',
@@ -373,6 +374,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
         $finder = $this->buildFinder();
         $finder->ignoreVCS(false)->ignoreVCS(false)->ignoreDotFiles(false);
         $this->assertIterator($this->toAbsolute([
+            '.gitignore',
             '.git',
             'foo',
             'foo/bar.tmp',
@@ -399,6 +401,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
         $finder = $this->buildFinder();
         $this->assertSame($finder, $finder->ignoreVCS(true)->ignoreDotFiles(false));
         $this->assertIterator($this->toAbsolute([
+            '.gitignore',
             'foo',
             'foo/bar.tmp',
             'test.php',
@@ -421,11 +424,90 @@ class FinderTest extends Iterator\RealIteratorTestCase
         ]), $finder->in(self::$tmpDir)->getIterator());
     }
 
+    public function testIgnoreVCSIgnored()
+    {
+        $finder = $this->buildFinder();
+        $this->assertSame(
+            $finder,
+            $finder
+                ->ignoreVCS(true)
+                ->ignoreDotFiles(true)
+                ->ignoreVCSIgnored(true)
+        );
+        $this->assertIterator($this->toAbsolute([
+            'foo',
+            'foo/bar.tmp',
+            'test.py',
+            'toto',
+            'foo bar',
+            'qux',
+            'qux/baz_100_1.py',
+            'qux/baz_1_2.py',
+        ]), $finder->in(self::$tmpDir)->getIterator());
+    }
+
+    public function testIgnoreVCSCanBeDisabledAfterFirstIteration()
+    {
+        $finder = $this->buildFinder();
+        $finder->in(self::$tmpDir);
+        $finder->ignoreDotFiles(false);
+
+        $this->assertIterator($this->toAbsolute([
+            '.gitignore',
+            'foo',
+            'foo/bar.tmp',
+            'qux',
+            'qux/baz_100_1.py',
+            'qux/baz_1_2.py',
+            'qux_0_1.php',
+            'qux_1000_1.php',
+            'qux_1002_0.php',
+            'qux_10_2.php',
+            'qux_12_0.php',
+            'qux_2_0.php',
+            'test.php',
+            'test.py',
+            'toto',
+            '.bar',
+            '.foo',
+            '.foo/.bar',
+            '.foo/bar',
+            'foo bar',
+        ]), $finder->getIterator());
+
+        $finder->ignoreVCS(false);
+        $this->assertIterator($this->toAbsolute([
+            '.gitignore',
+            '.git',
+            'foo',
+            'foo/bar.tmp',
+            'qux',
+            'qux/baz_100_1.py',
+            'qux/baz_1_2.py',
+            'qux_0_1.php',
+            'qux_1000_1.php',
+            'qux_1002_0.php',
+            'qux_10_2.php',
+            'qux_12_0.php',
+            'qux_2_0.php',
+            'test.php',
+            'test.py',
+            'toto',
+            'toto/.git',
+            '.bar',
+            '.foo',
+            '.foo/.bar',
+            '.foo/bar',
+            'foo bar',
+        ]), $finder->getIterator());
+    }
+
     public function testIgnoreDotFiles()
     {
         $finder = $this->buildFinder();
         $this->assertSame($finder, $finder->ignoreDotFiles(false)->ignoreVCS(false));
         $this->assertIterator($this->toAbsolute([
+            '.gitignore',
             '.git',
             '.bar',
             '.foo',
@@ -452,6 +534,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
         $finder = $this->buildFinder();
         $finder->ignoreDotFiles(false)->ignoreDotFiles(false)->ignoreVCS(false);
         $this->assertIterator($this->toAbsolute([
+            '.gitignore',
             '.git',
             '.bar',
             '.foo',
@@ -494,6 +577,54 @@ class FinderTest extends Iterator\RealIteratorTestCase
             'qux_12_0.php',
             'qux_2_0.php',
         ]), $finder->in(self::$tmpDir)->getIterator());
+    }
+
+    public function testIgnoreDotFilesCanBeDisabledAfterFirstIteration()
+    {
+        $finder = $this->buildFinder();
+        $finder->in(self::$tmpDir);
+
+        $this->assertIterator($this->toAbsolute([
+            'foo',
+            'foo/bar.tmp',
+            'qux',
+            'qux/baz_100_1.py',
+            'qux/baz_1_2.py',
+            'qux_0_1.php',
+            'qux_1000_1.php',
+            'qux_1002_0.php',
+            'qux_10_2.php',
+            'qux_12_0.php',
+            'qux_2_0.php',
+            'test.php',
+            'test.py',
+            'toto',
+            'foo bar',
+        ]), $finder->getIterator());
+
+        $finder->ignoreDotFiles(false);
+        $this->assertIterator($this->toAbsolute([
+            '.gitignore',
+            'foo',
+            'foo/bar.tmp',
+            'qux',
+            'qux/baz_100_1.py',
+            'qux/baz_1_2.py',
+            'qux_0_1.php',
+            'qux_1000_1.php',
+            'qux_1002_0.php',
+            'qux_10_2.php',
+            'qux_12_0.php',
+            'qux_2_0.php',
+            'test.php',
+            'test.py',
+            'toto',
+            '.bar',
+            '.foo',
+            '.foo/.bar',
+            '.foo/bar',
+            'foo bar',
+        ]), $finder->getIterator());
     }
 
     public function testSortByName()
@@ -742,6 +873,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
         $expected = [
             self::$tmpDir.\DIRECTORY_SEPARATOR.'test.php',
+            __DIR__.\DIRECTORY_SEPARATOR.'GitignoreTest.php',
             __DIR__.\DIRECTORY_SEPARATOR.'FinderTest.php',
             __DIR__.\DIRECTORY_SEPARATOR.'GlobTest.php',
             self::$tmpDir.\DIRECTORY_SEPARATOR.'qux_0_1.php',
@@ -755,11 +887,16 @@ class FinderTest extends Iterator\RealIteratorTestCase
         $this->assertIterator($expected, $iterator);
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     */
     public function testInWithNonExistentDirectory()
     {
+        $this->expectException('Symfony\Component\Finder\Exception\DirectoryNotFoundException');
+        $finder = new Finder();
+        $finder->in('foobar');
+    }
+
+    public function testInWithNonExistentDirectoryLegacyException()
+    {
+        $this->expectException('InvalidArgumentException');
         $finder = new Finder();
         $finder->in('foobar');
     }
@@ -772,28 +909,28 @@ class FinderTest extends Iterator\RealIteratorTestCase
         $this->assertIterator($this->toAbsoluteFixtures(['A/B/C/abc.dat', 'copy/A/B/C/abc.dat.copy']), $finder);
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     */
     public function testInWithNonDirectoryGlob()
     {
+        $this->expectException('InvalidArgumentException');
         $finder = new Finder();
         $finder->in(__DIR__.'/Fixtures/A/a*');
     }
 
     public function testInWithGlobBrace()
     {
+        if (!\defined('GLOB_BRACE')) {
+            $this->markTestSkipped('Glob brace is not supported on this system.');
+        }
+
         $finder = $this->buildFinder();
         $finder->in([__DIR__.'/Fixtures/{A,copy/A}/B/C'])->getIterator();
 
         $this->assertIterator($this->toAbsoluteFixtures(['A/B/C/abc.dat', 'copy/A/B/C/abc.dat.copy']), $finder);
     }
 
-    /**
-     * @expectedException \LogicException
-     */
     public function testGetIteratorWithoutIn()
     {
+        $this->expectException('LogicException');
         $finder = Finder::create();
         $finder->getIterator();
     }
@@ -875,6 +1012,40 @@ class FinderTest extends Iterator\RealIteratorTestCase
         $this->assertEquals($ref, $paths);
     }
 
+    public function testGetFilenameWithoutExtension()
+    {
+        $finder = $this->buildFinder()->in(self::$tmpDir)->sortByName();
+
+        $fileNames = [];
+
+        foreach ($finder as $file) {
+            $fileNames[] = $file->getFilenameWithoutExtension();
+        }
+
+        $ref = [
+            'test',
+            'toto',
+            'test',
+            'foo',
+            'bar',
+            'foo bar',
+            'qux',
+            'baz_100_1',
+            'baz_1_2',
+            'qux_0_1',
+            'qux_1000_1',
+            'qux_1002_0',
+            'qux_10_2',
+            'qux_12_0',
+            'qux_2_0',
+        ];
+
+        sort($fileNames);
+        sort($ref);
+
+        $this->assertEquals($ref, $fileNames);
+    }
+
     public function testAppendWithAFinder()
     {
         $finder = $this->buildFinder();
@@ -937,11 +1108,9 @@ class FinderTest extends Iterator\RealIteratorTestCase
         $this->assertCount($i, $files);
     }
 
-    /**
-     * @expectedException \LogicException
-     */
     public function testCountWithoutIn()
     {
+        $this->expectException('LogicException');
         $finder = Finder::create()->files();
         \count($finder);
     }
@@ -1195,12 +1364,8 @@ class FinderTest extends Iterator\RealIteratorTestCase
                 $this->fail('Finder should throw an exception when opening a non-readable directory.');
             } catch (\Exception $e) {
                 $expectedExceptionClass = 'Symfony\\Component\\Finder\\Exception\\AccessDeniedException';
-                if ($e instanceof \PHPUnit_Framework_ExpectationFailedException) {
-                    $this->fail(sprintf("Expected exception:\n%s\nGot:\n%s\nWith comparison failure:\n%s", $expectedExceptionClass, 'PHPUnit_Framework_ExpectationFailedException', $e->getComparisonFailure()->getExpectedAsString()));
-                }
-
                 if ($e instanceof \PHPUnit\Framework\ExpectationFailedException) {
-                    $this->fail(sprintf("Expected exception:\n%s\nGot:\n%s\nWith comparison failure:\n%s", $expectedExceptionClass, '\PHPUnit\Framework\ExpectationFailedException', $e->getComparisonFailure()->getExpectedAsString()));
+                    $this->fail(sprintf("Expected exception:\n%s\nGot:\n%s\nWith comparison failure:\n%s", $expectedExceptionClass, 'PHPUnit\Framework\ExpectationFailedException', $e->getComparisonFailure()->getExpectedAsString()));
                 }
 
                 $this->assertInstanceOf($expectedExceptionClass, $e);
@@ -1255,26 +1420,8 @@ class FinderTest extends Iterator\RealIteratorTestCase
         }
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation The "Symfony\Component\Finder\Finder::sortByName()" method will have a new "bool $useNaturalSort = false" argument in version 5.0, not defining it is deprecated since Symfony 4.2.
-     */
-    public function testInheritedClassCallSortByNameWithNoArguments()
-    {
-        $finderChild = new ClassThatInheritFinder();
-        $finderChild->sortByName();
-    }
-
     protected function buildFinder()
     {
         return Finder::create();
-    }
-}
-
-class ClassThatInheritFinder extends Finder
-{
-    public function sortByName()
-    {
-        parent::sortByName();
     }
 }

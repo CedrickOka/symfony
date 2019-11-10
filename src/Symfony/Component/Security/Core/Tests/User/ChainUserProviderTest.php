@@ -15,6 +15,8 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Exception\UnsupportedUserException;
 use Symfony\Component\Security\Core\Exception\UsernameNotFoundException;
 use Symfony\Component\Security\Core\User\ChainUserProvider;
+use Symfony\Component\Security\Core\User\PasswordUpgraderInterface;
+use Symfony\Component\Security\Core\User\User;
 
 class ChainUserProviderTest extends TestCase
 {
@@ -33,18 +35,16 @@ class ChainUserProviderTest extends TestCase
             ->expects($this->once())
             ->method('loadUserByUsername')
             ->with($this->equalTo('foo'))
-            ->will($this->returnValue($account = $this->getAccount()))
+            ->willReturn($account = $this->getAccount())
         ;
 
         $provider = new ChainUserProvider([$provider1, $provider2]);
         $this->assertSame($account, $provider->loadUserByUsername('foo'));
     }
 
-    /**
-     * @expectedException \Symfony\Component\Security\Core\Exception\UsernameNotFoundException
-     */
     public function testLoadUserByUsernameThrowsUsernameNotFoundException()
     {
+        $this->expectException('Symfony\Component\Security\Core\Exception\UsernameNotFoundException');
         $provider1 = $this->getProvider();
         $provider1
             ->expects($this->once())
@@ -78,7 +78,7 @@ class ChainUserProviderTest extends TestCase
         $provider2
             ->expects($this->once())
             ->method('refreshUser')
-            ->will($this->returnValue($account = $this->getAccount()))
+            ->willReturn($account = $this->getAccount())
         ;
 
         $provider = new ChainUserProvider([$provider1, $provider2]);
@@ -98,18 +98,16 @@ class ChainUserProviderTest extends TestCase
         $provider2
             ->expects($this->once())
             ->method('refreshUser')
-            ->will($this->returnValue($account = $this->getAccount()))
+            ->willReturn($account = $this->getAccount())
         ;
 
         $provider = new ChainUserProvider([$provider1, $provider2]);
         $this->assertSame($account, $provider->refreshUser($this->getAccount()));
     }
 
-    /**
-     * @expectedException \Symfony\Component\Security\Core\Exception\UnsupportedUserException
-     */
     public function testRefreshUserThrowsUnsupportedUserException()
     {
+        $this->expectException('Symfony\Component\Security\Core\Exception\UnsupportedUserException');
         $provider1 = $this->getProvider();
         $provider1
             ->expects($this->once())
@@ -135,7 +133,7 @@ class ChainUserProviderTest extends TestCase
             ->expects($this->once())
             ->method('supportsClass')
             ->with($this->equalTo('foo'))
-            ->will($this->returnValue(false))
+            ->willReturn(false)
         ;
 
         $provider2 = $this->getProvider();
@@ -143,7 +141,7 @@ class ChainUserProviderTest extends TestCase
             ->expects($this->once())
             ->method('supportsClass')
             ->with($this->equalTo('foo'))
-            ->will($this->returnValue(true))
+            ->willReturn(true)
         ;
 
         $provider = new ChainUserProvider([$provider1, $provider2]);
@@ -157,7 +155,7 @@ class ChainUserProviderTest extends TestCase
             ->expects($this->once())
             ->method('supportsClass')
             ->with($this->equalTo('foo'))
-            ->will($this->returnValue(false))
+            ->willReturn(false)
         ;
 
         $provider2 = $this->getProvider();
@@ -165,7 +163,7 @@ class ChainUserProviderTest extends TestCase
             ->expects($this->once())
             ->method('supportsClass')
             ->with($this->equalTo('foo'))
-            ->will($this->returnValue(false))
+            ->willReturn(false)
         ;
 
         $provider = new ChainUserProvider([$provider1, $provider2]);
@@ -185,11 +183,33 @@ class ChainUserProviderTest extends TestCase
         $provider2
             ->expects($this->once())
             ->method('refreshUser')
-            ->will($this->returnValue($account = $this->getAccount()))
+            ->willReturn($account = $this->getAccount())
         ;
 
         $provider = new ChainUserProvider(new \ArrayObject([$provider1, $provider2]));
         $this->assertSame($account, $provider->refreshUser($this->getAccount()));
+    }
+
+    public function testPasswordUpgrades()
+    {
+        $user = new User('user', 'pwd');
+
+        $provider1 = $this->getMockBuilder(PasswordUpgraderInterface::class)->getMock();
+        $provider1
+            ->expects($this->once())
+            ->method('upgradePassword')
+            ->willThrowException(new UnsupportedUserException('unsupported'))
+        ;
+
+        $provider2 = $this->getMockBuilder(PasswordUpgraderInterface::class)->getMock();
+        $provider2
+            ->expects($this->once())
+            ->method('upgradePassword')
+            ->with($user, 'foobar')
+        ;
+
+        $provider = new ChainUserProvider([$provider1, $provider2]);
+        $provider->upgradePassword($user, 'foobar');
     }
 
     protected function getAccount()

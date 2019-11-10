@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\Mime\Tests;
 
+use Symfony\Component\Mime\Exception\RuntimeException;
 use Symfony\Component\Mime\MimeTypeGuesserInterface;
 use Symfony\Component\Mime\MimeTypes;
 
@@ -35,10 +36,10 @@ class MimeTypesTest extends AbstractMimeTypeGuesserTest
 
             public function guessMimeType(string $mimeType): ?string
             {
-                throw new \RuntimeException('Should never be called.');
+                throw new RuntimeException('Should never be called.');
             }
         });
-        $this->assertEquals('image/gif', $guesser->guessMimeType(__DIR__.'/Fixtures/test'));
+        $this->assertEquals('image/gif', $guesser->guessMimeType(__DIR__.'/Fixtures/mimetypes/test'));
     }
 
     public function testGetExtensions()
@@ -46,6 +47,8 @@ class MimeTypesTest extends AbstractMimeTypeGuesserTest
         $mt = new MimeTypes();
         $this->assertSame(['mbox'], $mt->getExtensions('application/mbox'));
         $this->assertSame(['ai', 'eps', 'ps'], $mt->getExtensions('application/postscript'));
+        $this->assertContains('svg', $mt->getExtensions('image/svg+xml'));
+        $this->assertContains('svg', $mt->getExtensions('image/svg'));
         $this->assertSame([], $mt->getExtensions('application/whatever-symfony'));
     }
 
@@ -55,6 +58,8 @@ class MimeTypesTest extends AbstractMimeTypeGuesserTest
         $this->assertSame(['application/mbox'], $mt->getMimeTypes('mbox'));
         $this->assertContains('application/postscript', $mt->getMimeTypes('ai'));
         $this->assertContains('application/postscript', $mt->getMimeTypes('ps'));
+        $this->assertContains('image/svg+xml', $mt->getMimeTypes('svg'));
+        $this->assertContains('image/svg', $mt->getMimeTypes('svg'));
         $this->assertSame([], $mt->getMimeTypes('symfony'));
     }
 }

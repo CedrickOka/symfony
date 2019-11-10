@@ -1,5 +1,5 @@
 {
-    "Version": "2.1.45.14",
+    "Version": "36",
     "Names": {
         "aa": "Afar",
         "ab": "Abchazisch",
@@ -87,6 +87,7 @@
         "car": "Caribisch",
         "cay": "Cayuga",
         "cch": "Atsam",
+        "ccp": "Chakma",
         "ce": "Tsjetsjeens",
         "ceb": "Cebuano",
         "cgg": "Chiga",
@@ -370,7 +371,6 @@
         "nb": "Noors - Bokmål",
         "nd": "Noord-Ndebele",
         "nds": "Nedersaksisch",
-        "nds_NL": "Nederduits",
         "ne": "Nepalees",
         "new": "Newari",
         "ng": "Ndonga",
@@ -438,7 +438,6 @@
         "ro": "Roemeens",
         "rof": "Rombo",
         "rom": "Romani",
-        "root": "Root",
         "rtm": "Rotumaans",
         "ru": "Russisch",
         "rue": "Roetheens",
@@ -595,5 +594,8 @@
         "zu": "Zoeloe",
         "zun": "Zuni",
         "zza": "Zaza"
+    },
+    "LocalizedNames": {
+        "nds_NL": "Nederduits"
     }
 }

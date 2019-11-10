@@ -24,12 +24,12 @@ class TableTest extends TestCase
 {
     protected $stream;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->stream = fopen('php://memory', 'r+');
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         fclose($this->stream);
         $this->stream = null;
@@ -767,12 +767,10 @@ TABLE;
         $this->assertEquals($expected, $this->getOutputContent($output));
     }
 
-    /**
-     * @expectedException \Symfony\Component\Console\Exception\InvalidArgumentException
-     * @expectedExceptionMessage A cell must be a TableCell, a scalar or an object implementing __toString, array given.
-     */
     public function testThrowsWhenTheCellInAnArray()
     {
+        $this->expectException('Symfony\Component\Console\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('A cell must be a TableCell, a scalar or an object implementing __toString, array given.');
         $table = new Table($output = $this->getOutputStream());
         $table
             ->setHeaders(['ISBN', 'Title', 'Author', 'Price'])
@@ -944,33 +942,27 @@ TABLE;
         $this->assertEquals($expected, $this->getOutputContent($output));
     }
 
-    /**
-     * @expectedException \Symfony\Component\Console\Exception\RuntimeException
-     * @expectedExceptionMessage Output should be an instance of "Symfony\Component\Console\Output\ConsoleSectionOutput" when calling "Symfony\Component\Console\Helper\Table::appendRow".
-     */
     public function testAppendRowWithoutSectionOutput()
     {
+        $this->expectException('Symfony\Component\Console\Exception\RuntimeException');
+        $this->expectExceptionMessage('Output should be an instance of "Symfony\Component\Console\Output\ConsoleSectionOutput" when calling "Symfony\Component\Console\Helper\Table::appendRow".');
         $table = new Table($this->getOutputStream());
 
         $table->appendRow(['9971-5-0210-0', 'A Tale of Two Cities', 'Charles Dickens', '139.25']);
     }
 
-    /**
-     * @expectedException \Symfony\Component\Console\Exception\InvalidArgumentException
-     * @expectedExceptionMessage Style "absent" is not defined.
-     */
     public function testIsNotDefinedStyleException()
     {
+        $this->expectException('Symfony\Component\Console\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('Style "absent" is not defined.');
         $table = new Table($this->getOutputStream());
         $table->setStyle('absent');
     }
 
-    /**
-     * @expectedException \Symfony\Component\Console\Exception\InvalidArgumentException
-     * @expectedExceptionMessage Style "absent" is not defined.
-     */
     public function testGetStyleDefinition()
     {
+        $this->expectException('Symfony\Component\Console\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('Style "absent" is not defined.');
         Table::getStyleDefinition('absent');
     }
 
@@ -1077,6 +1069,26 @@ TABLE;
         $this->assertEquals($expected, $this->getOutputContent($output));
     }
 
+    public function testColumnMaxWidthsWithTrailingBackslash()
+    {
+        (new Table($output = $this->getOutputStream()))
+            ->setColumnMaxWidth(0, 5)
+            ->setRows([['1234\6']])
+            ->render()
+        ;
+
+        $expected =
+            <<<'TABLE'
++-------+
+| 1234\ |
+| 6     |
++-------+
+
+TABLE;
+
+        $this->assertEquals($expected, $this->getOutputContent($output));
+    }
+
     public function testBoxedStyleWithColspan()
     {
         $boxed = new TableStyle();
@@ -1113,6 +1125,61 @@ TABLE;
         $this->assertSame($expected, $this->getOutputContent($output));
     }
 
+    public function provideRenderHorizontalTests()
+    {
+        $headers = ['foo', 'bar', 'baz'];
+        $rows = [['one', 'two', 'tree'], ['1', '2', '3']];
+        $expected = <<<EOTXT
++-----+------+---+
+| foo | one  | 1 |
+| bar | two  | 2 |
+| baz | tree | 3 |
++-----+------+---+
+
+EOTXT;
+        yield [$headers, $rows, $expected];
+
+        $headers = ['foo', 'bar', 'baz'];
+        $rows = [['one', 'two'], ['1']];
+        $expected = <<<EOTXT
++-----+-----+---+
+| foo | one | 1 |
+| bar | two |   |
+| baz |     |   |
++-----+-----+---+
+
+EOTXT;
+        yield [$headers, $rows, $expected];
+
+        $headers = ['foo', 'bar', 'baz'];
+        $rows = [['one', 'two', 'tree'], new TableSeparator(), ['1', '2', '3']];
+        $expected = <<<EOTXT
++-----+------+---+
+| foo | one  | 1 |
+| bar | two  | 2 |
+| baz | tree | 3 |
++-----+------+---+
+
+EOTXT;
+        yield [$headers, $rows, $expected];
+    }
+
+    /**
+     * @dataProvider provideRenderHorizontalTests
+     */
+    public function testRenderHorizontal(array $headers, array $rows, string $expected)
+    {
+        $table = new Table($output = $this->getOutputStream());
+        $table
+            ->setHeaders($headers)
+            ->setRows($rows)
+            ->setHorizontal()
+        ;
+        $table->render();
+
+        $this->assertEquals($expected, $this->getOutputContent($output));
+    }
+
     protected function getOutputStream($decorated = false)
     {
         return new StreamOutput($this->stream, StreamOutput::VERBOSITY_NORMAL, $decorated);
@@ -1123,5 +1190,57 @@ TABLE;
         rewind($output->getStream());
 
         return str_replace(PHP_EOL, "\n", stream_get_contents($output->getStream()));
+    }
+
+    public function testWithColspanAndMaxWith(): void
+    {
+        $table = new Table($output = $this->getOutputStream());
+
+        $table->setColumnMaxWidth(0, 15);
+        $table->setColumnMaxWidth(1, 15);
+        $table->setColumnMaxWidth(2, 15);
+        $table->setRows([
+                [new TableCell('Lorem ipsum dolor sit amet, <fg=white;bg=green>consectetur</> adipiscing elit, <fg=white;bg=red>sed</> do <fg=white;bg=red>eiusmod</> tempor', ['colspan' => 3])],
+                new TableSeparator(),
+                [new TableCell('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor', ['colspan' => 3])],
+                new TableSeparator(),
+                [new TableCell('Lorem ipsum <fg=white;bg=red>dolor</> sit amet, consectetur ', ['colspan' => 2]), 'hello world'],
+                new TableSeparator(),
+                ['hello <fg=white;bg=green>world</>', new TableCell('Lorem ipsum dolor sit amet, <fg=white;bg=green>consectetur</> adipiscing elit', ['colspan' => 2])],
+                new TableSeparator(),
+                ['hello ', new TableCell('world', ['colspan' => 1]), 'Lorem ipsum dolor sit amet, consectetur'],
+                new TableSeparator(),
+                ['Symfony ', new TableCell('Test', ['colspan' => 1]), 'Lorem <fg=white;bg=green>ipsum</> dolor sit amet, consectetur'],
+            ])
+        ;
+        $table->render();
+
+        $expected =
+            <<<TABLE
++-----------------+-----------------+-----------------+
+| Lorem ipsum dolor sit amet, consectetur adipi       |
+| scing elit, sed do eiusmod tempor                   |
++-----------------+-----------------+-----------------+
+| Lorem ipsum dolor sit amet, consectetur adipi       |
+| scing elit, sed do eiusmod tempor                   |
++-----------------+-----------------+-----------------+
+| Lorem ipsum dolor sit amet, co    | hello world     |
+| nsectetur                         |                 |
++-----------------+-----------------+-----------------+
+| hello world     | Lorem ipsum dolor sit amet, co    |
+|                 | nsectetur adipiscing elit         |
++-----------------+-----------------+-----------------+
+| hello           | world           | Lorem ipsum dol |
+|                 |                 | or sit amet, co |
+|                 |                 | nsectetur       |
++-----------------+-----------------+-----------------+
+| Symfony         | Test            | Lorem ipsum dol |
+|                 |                 | or sit amet, co |
+|                 |                 | nsectetur       |
++-----------------+-----------------+-----------------+
+
+TABLE;
+
+        $this->assertSame($expected, $this->getOutputContent($output));
     }
 }

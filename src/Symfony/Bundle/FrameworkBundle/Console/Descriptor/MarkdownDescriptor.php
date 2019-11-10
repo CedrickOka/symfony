@@ -11,6 +11,7 @@
 
 namespace Symfony\Bundle\FrameworkBundle\Console\Descriptor;
 
+use Symfony\Component\Console\Exception\LogicException;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -59,6 +60,10 @@ class MarkdownDescriptor extends Descriptor
             ."\n".'- Defaults: '.$this->formatRouterConfig($route->getDefaults())
             ."\n".'- Requirements: '.($route->getRequirements() ? $this->formatRouterConfig($route->getRequirements()) : 'NO CUSTOM')
             ."\n".'- Options: '.$this->formatRouterConfig($route->getOptions());
+
+        if ('' !== $route->getCondition()) {
+            $output .= "\n".'- Condition: '.$route->getCondition();
+        }
 
         $this->write(isset($options['name'])
             ? $options['name']."\n".str_repeat('-', \strlen($options['name']))."\n\n".$output
@@ -127,7 +132,9 @@ class MarkdownDescriptor extends Descriptor
         }
         $this->write($title."\n".str_repeat('=', \strlen($title)));
 
-        $serviceIds = isset($options['tag']) && $options['tag'] ? array_keys($builder->findTaggedServiceIds($options['tag'])) : $builder->getServiceIds();
+        $serviceIds = isset($options['tag']) && $options['tag']
+            ? $this->sortTaggedServicesByPriority($builder->findTaggedServiceIds($options['tag']))
+            : $this->sortServiceIds($builder->getServiceIds());
         $showArguments = isset($options['show_arguments']) && $options['show_arguments'];
         $services = ['definitions' => [], 'aliases' => [], 'services' => []];
 
@@ -135,7 +142,7 @@ class MarkdownDescriptor extends Descriptor
             $serviceIds = array_filter($serviceIds, $options['filter']);
         }
 
-        foreach ($this->sortServiceIds($serviceIds) as $serviceId) {
+        foreach ($serviceIds as $serviceId) {
             $service = $this->resolveServiceDefinition($builder, $serviceId);
 
             if ($showHidden xor '.' === ($serviceId[0] ?? null)) {
@@ -183,7 +190,7 @@ class MarkdownDescriptor extends Descriptor
     {
         $output = '';
 
-        if ('' !== $classDescription = $this->getClassDescription($definition->getClass())) {
+        if ('' !== $classDescription = $this->getClassDescription((string) $definition->getClass())) {
             $output .= '- Description: `'.$classDescription.'`'."\n";
         }
 
@@ -226,7 +233,7 @@ class MarkdownDescriptor extends Descriptor
         }
 
         if (!(isset($options['omit_tags']) && $options['omit_tags'])) {
-            foreach ($definition->getTags() as $tagName => $tagData) {
+            foreach ($this->sortTagsByPriority($definition->getTags()) as $tagName => $tagData) {
                 foreach ($tagData as $parameters) {
                     $output .= "\n".'- Tag: `'.$tagName.'`';
                     foreach ($parameters as $name => $value) {
@@ -248,7 +255,9 @@ class MarkdownDescriptor extends Descriptor
             ."\n".'- Public: '.($alias->isPublic() && !$alias->isPrivate() ? 'yes' : 'no');
 
         if (!isset($options['id'])) {
-            return $this->write($output);
+            $this->write($output);
+
+            return;
         }
 
         $this->write(sprintf("### %s\n\n%s\n", $options['id'], $output));
@@ -272,9 +281,17 @@ class MarkdownDescriptor extends Descriptor
     /**
      * {@inheritdoc}
      */
+    protected function describeContainerEnvVars(array $envs, array $options = [])
+    {
+        throw new LogicException('Using the markdown format to debug environment variables is not supported.');
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     protected function describeEventDispatcherListeners(EventDispatcherInterface $eventDispatcher, array $options = [])
     {
-        $event = array_key_exists('event', $options) ? $options['event'] : null;
+        $event = \array_key_exists('event', $options) ? $options['event'] : null;
 
         $title = 'Registered listeners';
         if (null !== $event) {
@@ -379,10 +396,7 @@ class MarkdownDescriptor extends Descriptor
         throw new \InvalidArgumentException('Callable is not describable.');
     }
 
-    /**
-     * @return string
-     */
-    private function formatRouterConfig(array $array)
+    private function formatRouterConfig(array $array): string
     {
         if (!$array) {
             return 'NONE';

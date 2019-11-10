@@ -16,6 +16,7 @@ use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Messenger\DoctrineTransactionMiddleware;
 use Symfony\Component\Messenger\Envelope;
+use Symfony\Component\Messenger\Exception\UnrecoverableMessageHandlingException;
 use Symfony\Component\Messenger\Test\Middleware\MiddlewareTestCase;
 
 class DoctrineTransactionMiddlewareTest extends MiddlewareTestCase
@@ -24,7 +25,7 @@ class DoctrineTransactionMiddlewareTest extends MiddlewareTestCase
     private $entityManager;
     private $middleware;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->connection = $this->createMock(Connection::class);
 
@@ -52,12 +53,10 @@ class DoctrineTransactionMiddlewareTest extends MiddlewareTestCase
         $this->middleware->handle(new Envelope(new \stdClass()), $this->getStackMock());
     }
 
-    /**
-     * @expectedException \RuntimeException
-     * @expectedExceptionMessage Thrown from next middleware.
-     */
     public function testTransactionIsRolledBackOnException()
     {
+        $this->expectException('RuntimeException');
+        $this->expectExceptionMessage('Thrown from next middleware.');
         $this->connection->expects($this->once())
             ->method('beginTransaction')
         ;
@@ -66,5 +65,20 @@ class DoctrineTransactionMiddlewareTest extends MiddlewareTestCase
         ;
 
         $this->middleware->handle(new Envelope(new \stdClass()), $this->getThrowingStackMock());
+    }
+
+    public function testInvalidEntityManagerThrowsException()
+    {
+        $managerRegistry = $this->createMock(ManagerRegistry::class);
+        $managerRegistry
+            ->method('getManager')
+            ->with('unknown_manager')
+            ->will($this->throwException(new \InvalidArgumentException()));
+
+        $middleware = new DoctrineTransactionMiddleware($managerRegistry, 'unknown_manager');
+
+        $this->expectException(UnrecoverableMessageHandlingException::class);
+
+        $middleware->handle(new Envelope(new \stdClass()), $this->getStackMock(false));
     }
 }

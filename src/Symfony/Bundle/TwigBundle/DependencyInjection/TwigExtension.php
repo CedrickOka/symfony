@@ -11,7 +11,6 @@
 
 namespace Symfony\Bundle\TwigBundle\DependencyInjection;
 
-use Symfony\Bundle\TwigBundle\Loader\NativeFilesystemLoader;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Config\Resource\FileExistenceResource;
 use Symfony\Component\Console\Application;
@@ -19,6 +18,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\DependencyInjection\Extension;
+use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Translation\Translator;
 use Twig\Extension\ExtensionInterface;
 use Twig\Extension\RuntimeExtensionInterface;
@@ -41,12 +41,12 @@ class TwigExtension extends Extension
             $loader->load('form.xml');
         }
 
-        if (interface_exists('Symfony\Component\Templating\EngineInterface')) {
-            $loader->load('templating.xml');
-        }
-
         if (class_exists(Application::class)) {
             $loader->load('console.xml');
+        }
+
+        if (class_exists(Mailer::class)) {
+            $loader->load('mailer.xml');
         }
 
         if (!class_exists(Translator::class)) {
@@ -70,8 +70,6 @@ class TwigExtension extends Extension
 
         $config = $this->processConfiguration($configuration, $configs);
 
-        $container->setParameter('twig.exception_listener.controller', $config['exception_controller']);
-
         $container->setParameter('twig.form.resources', $config['form_themes']);
         $container->setParameter('twig.default_path', $config['default_path']);
         $defaultTwigPath = $container->getParameterBag()->resolveValue($config['default_path']);
@@ -86,10 +84,6 @@ class TwigExtension extends Extension
 
         $twigFilesystemLoaderDefinition = $container->getDefinition('twig.loader.native_filesystem');
 
-        if ($container->getParameter('kernel.debug')) {
-            $twigFilesystemLoaderDefinition->setClass(NativeFilesystemLoader::class);
-        }
-
         // register user-configured paths
         foreach ($config['paths'] as $path => $namespace) {
             if (!$namespace) {
@@ -100,8 +94,7 @@ class TwigExtension extends Extension
         }
 
         // paths are modified in ExtensionPass if forms are enabled
-        $container->getDefinition('twig.cache_warmer')->replaceArgument(2, $config['paths']);
-        $container->getDefinition('twig.template_iterator')->replaceArgument(2, $config['paths']);
+        $container->getDefinition('twig.template_iterator')->replaceArgument(1, $config['paths']);
 
         foreach ($this->getBundleTemplatePaths($container, $config) as $name => $paths) {
             $namespace = $this->normalizeBundleName($name);
@@ -114,15 +107,6 @@ class TwigExtension extends Extension
                 $twigFilesystemLoaderDefinition->addMethodCall('addPath', [$path, '!'.$namespace]);
             }
         }
-
-        if (file_exists($dir = $container->getParameter('kernel.root_dir').'/Resources/views')) {
-            if ($dir !== $defaultTwigPath) {
-                @trigger_error(sprintf('Templates directory "%s" is deprecated since Symfony 4.2, use "%s" instead.', $dir, $defaultTwigPath), E_USER_DEPRECATED);
-            }
-
-            $twigFilesystemLoaderDefinition->addMethodCall('addPath', [$dir]);
-        }
-        $container->addResource(new FileExistenceResource($dir));
 
         if (file_exists($defaultTwigPath)) {
             $twigFilesystemLoaderDefinition->addMethodCall('addPath', [$defaultTwigPath]);
@@ -140,18 +124,20 @@ class TwigExtension extends Extension
             }
         }
 
-        unset(
-            $config['form'],
-            $config['globals'],
-            $config['extensions']
-        );
-
         if (isset($config['autoescape_service']) && isset($config['autoescape_service_method'])) {
             $config['autoescape'] = [new Reference($config['autoescape_service']), $config['autoescape_service_method']];
         }
-        unset($config['autoescape_service'], $config['autoescape_service_method']);
 
-        $container->getDefinition('twig')->replaceArgument(1, $config);
+        $container->getDefinition('twig')->replaceArgument(1, array_intersect_key($config, [
+            'debug' => true,
+            'charset' => true,
+            'base_template_class' => true,
+            'strict_variables' => true,
+            'autoescape' => true,
+            'cache' => true,
+            'auto_reload' => true,
+            'optimizations' => true,
+        ]));
 
         $container->registerForAutoconfiguration(\Twig_ExtensionInterface::class)->addTag('twig.extension');
         $container->registerForAutoconfiguration(\Twig_LoaderInterface::class)->addTag('twig.loader');
@@ -160,30 +146,22 @@ class TwigExtension extends Extension
         $container->registerForAutoconfiguration(RuntimeExtensionInterface::class)->addTag('twig.runtime');
 
         if (false === $config['cache']) {
-            $container->removeDefinition('twig.cache_warmer');
             $container->removeDefinition('twig.template_cache_warmer');
         }
     }
 
-    private function getBundleTemplatePaths(ContainerBuilder $container, array $config)
+    private function getBundleTemplatePaths(ContainerBuilder $container, array $config): array
     {
         $bundleHierarchy = [];
         foreach ($container->getParameter('kernel.bundles_metadata') as $name => $bundle) {
             $defaultOverrideBundlePath = $container->getParameterBag()->resolveValue($config['default_path']).'/bundles/'.$name;
-
-            if (file_exists($dir = $container->getParameter('kernel.root_dir').'/Resources/'.$name.'/views')) {
-                @trigger_error(sprintf('Templates directory "%s" is deprecated since Symfony 4.2, use "%s" instead.', $dir, $defaultOverrideBundlePath), E_USER_DEPRECATED);
-
-                $bundleHierarchy[$name][] = $dir;
-            }
-            $container->addResource(new FileExistenceResource($dir));
 
             if (file_exists($defaultOverrideBundlePath)) {
                 $bundleHierarchy[$name][] = $defaultOverrideBundlePath;
             }
             $container->addResource(new FileExistenceResource($defaultOverrideBundlePath));
 
-            if (file_exists($dir = $bundle['path'].'/Resources/views')) {
+            if (file_exists($dir = $bundle['path'].'/Resources/views') || file_exists($dir = $bundle['path'].'/templates')) {
                 $bundleHierarchy[$name][] = $dir;
             }
             $container->addResource(new FileExistenceResource($dir));
@@ -192,7 +170,7 @@ class TwigExtension extends Extension
         return $bundleHierarchy;
     }
 
-    private function normalizeBundleName($name)
+    private function normalizeBundleName(string $name): string
     {
         if ('Bundle' === substr($name, -6)) {
             $name = substr($name, 0, -6);
@@ -202,9 +180,7 @@ class TwigExtension extends Extension
     }
 
     /**
-     * Returns the base path for the XSD files.
-     *
-     * @return string The XSD base path
+     * {@inheritdoc}
      */
     public function getXsdValidationBasePath()
     {

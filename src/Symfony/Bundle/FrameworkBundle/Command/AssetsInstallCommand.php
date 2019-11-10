@@ -44,13 +44,9 @@ class AssetsInstallCommand extends Command
     private $filesystem;
     private $projectDir;
 
-    public function __construct(Filesystem $filesystem, string $projectDir = null)
+    public function __construct(Filesystem $filesystem, string $projectDir)
     {
         parent::__construct();
-
-        if (null === $projectDir) {
-            @trigger_error(sprintf('Not passing the project directory to the constructor of %s is deprecated since Symfony 4.3 and will not be supported in 5.0.', __CLASS__), E_USER_DEPRECATED);
-        }
 
         $this->filesystem = $filesystem;
         $this->projectDir = $projectDir;
@@ -95,7 +91,7 @@ EOT
     /**
      * {@inheritdoc}
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         /** @var KernelInterface $kernel */
         $kernel = $this->getApplication()->getKernel();
@@ -137,7 +133,7 @@ EOT
         $validAssetDirs = [];
         /** @var BundleInterface $bundle */
         foreach ($kernel->getBundles() as $bundle) {
-            if (!is_dir($originDir = $bundle->getPath().'/Resources/public')) {
+            if (!is_dir($originDir = $bundle->getPath().'/Resources/public') && !is_dir($originDir = $bundle->getPath().'/public')) {
                 continue;
             }
 
@@ -262,7 +258,7 @@ EOT
         return self::METHOD_COPY;
     }
 
-    private function getPublicDirectory(ContainerInterface $container)
+    private function getPublicDirectory(ContainerInterface $container): string
     {
         $defaultPublicDir = 'public';
 

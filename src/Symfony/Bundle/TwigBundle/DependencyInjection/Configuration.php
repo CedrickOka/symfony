@@ -14,6 +14,7 @@ namespace Symfony\Bundle\TwigBundle\DependencyInjection;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 
 /**
  * TwigExtension configuration structure.
@@ -32,11 +33,18 @@ class Configuration implements ConfigurationInterface
         $treeBuilder = new TreeBuilder('twig');
         $rootNode = $treeBuilder->getRootNode();
 
-        $rootNode
-            ->children()
-                ->scalarNode('exception_controller')->defaultValue('twig.controller.exception::showAction')->end()
-            ->end()
-        ;
+        $rootNode->beforeNormalization()
+            ->ifTrue(function ($v) { return \is_array($v) && \array_key_exists('exception_controller', $v); })
+            ->then(function ($v) {
+                if (isset($v['exception_controller'])) {
+                    throw new InvalidConfigurationException('Option "exception_controller" under "twig" must be null or unset, use "error_controller" under "framework" instead.');
+                }
+
+                unset($v['exception_controller']);
+
+                return $v;
+            })
+        ->end();
 
         $this->addFormThemesSection($rootNode);
         $this->addGlobalsSection($rootNode);
@@ -128,13 +136,7 @@ class Configuration implements ConfigurationInterface
                 ->scalarNode('cache')->defaultValue('%kernel.cache_dir%/twig')->end()
                 ->scalarNode('charset')->defaultValue('%kernel.charset%')->end()
                 ->booleanNode('debug')->defaultValue('%kernel.debug%')->end()
-                ->booleanNode('strict_variables')
-                    ->defaultValue(function () {
-                        @trigger_error('Relying on the default value ("false") of the "twig.strict_variables" configuration option is deprecated since Symfony 4.1. You should use "%kernel.debug%" explicitly instead, which will be the new default in 5.0.', E_USER_DEPRECATED);
-
-                        return false;
-                    })
-                ->end()
+                ->booleanNode('strict_variables')->defaultValue('%kernel.debug%')->end()
                 ->scalarNode('auto_reload')->end()
                 ->integerNode('optimizations')->min(-1)->end()
                 ->scalarNode('default_path')

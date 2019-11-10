@@ -44,7 +44,7 @@ class ResolveInstanceofConditionalsPass implements CompilerPassInterface
         }
     }
 
-    private function processDefinition(ContainerBuilder $container, $id, Definition $definition)
+    private function processDefinition(ContainerBuilder $container, string $id, Definition $definition): Definition
     {
         $instanceofConditionals = $definition->getInstanceofConditionals();
         $autoconfiguredInstanceof = $definition->isAutoconfigured() ? $container->getAutoconfiguredInstanceof() : [];
@@ -113,14 +113,17 @@ class ResolveInstanceofConditionalsPass implements CompilerPassInterface
                 $definition->setShared($shared);
             }
 
-            $i = \count($instanceofTags);
-            while (0 <= --$i) {
-                foreach ($instanceofTags[$i] as $k => $v) {
-                    foreach ($v as $v) {
-                        if ($definition->hasTag($k) && \in_array($v, $definition->getTag($k))) {
-                            continue;
+            // Don't add tags to service decorators
+            if (null === $definition->getDecoratedService()) {
+                $i = \count($instanceofTags);
+                while (0 <= --$i) {
+                    foreach ($instanceofTags[$i] as $k => $v) {
+                        foreach ($v as $v) {
+                            if ($definition->hasTag($k) && \in_array($v, $definition->getTag($k))) {
+                                continue;
+                            }
+                            $definition->addTag($k, $v);
                         }
-                        $definition->addTag($k, $v);
                     }
                 }
             }
@@ -141,7 +144,7 @@ class ResolveInstanceofConditionalsPass implements CompilerPassInterface
         return $definition;
     }
 
-    private function mergeConditionals(array $autoconfiguredInstanceof, array $instanceofConditionals, ContainerBuilder $container)
+    private function mergeConditionals(array $autoconfiguredInstanceof, array $instanceofConditionals, ContainerBuilder $container): array
     {
         // make each value an array of ChildDefinition
         $conditionals = array_map(function ($childDef) { return [$childDef]; }, $autoconfiguredInstanceof);

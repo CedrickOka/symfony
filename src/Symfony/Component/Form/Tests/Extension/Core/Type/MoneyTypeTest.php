@@ -17,13 +17,24 @@ class MoneyTypeTest extends BaseTypeTest
 {
     const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\MoneyType';
 
-    protected function setUp()
+    private $defaultLocale;
+
+    protected function setUp(): void
     {
         // we test against different locales, so we need the full
         // implementation
         IntlTestHelper::requireFullIntl($this, false);
 
         parent::setUp();
+
+        $this->defaultLocale = \Locale::getDefault();
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        \Locale::setDefault($this->defaultLocale);
     }
 
     public function testPassMoneyPatternToView()

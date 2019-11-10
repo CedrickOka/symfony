@@ -13,6 +13,7 @@ namespace Symfony\Bundle\TwigBundle\Tests\DependencyInjection\Compiler;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\TwigBundle\DependencyInjection\Compiler\ExtensionPass;
+use Symfony\Bundle\TwigBundle\TemplateIterator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 
@@ -24,7 +25,6 @@ class ExtensionPassTest extends TestCase
         $container->setParameter('kernel.debug', false);
 
         $container->register('twig.app_variable', '\Symfony\Bridge\Twig\AppVariable');
-        $container->register('templating', '\Symfony\Bundle\TwigBundle\TwigEngine');
         $container->register('twig.extension.yaml');
         $container->register('twig.extension.debug.stopwatch');
         $container->register('twig.extension.expression');
@@ -33,14 +33,12 @@ class ExtensionPassTest extends TestCase
         $nativeTwigLoader->addMethodCall('addPath', []);
         $container->setDefinition('twig.loader.native_filesystem', $nativeTwigLoader);
 
-        $filesystemLoader = new Definition('\Symfony\Bundle\TwigBundle\Loader\FilesystemLoader');
-        $filesystemLoader->setArguments([null, null, null]);
-        $filesystemLoader->addMethodCall('addPath', []);
-        $container->setDefinition('twig.loader.filesystem', $filesystemLoader);
+        $templateIterator = new Definition(TemplateIterator::class, [null, null, null]);
+        $container->setDefinition('twig.template_iterator', $templateIterator);
 
         $extensionPass = new ExtensionPass();
         $extensionPass->process($container);
 
-        $this->assertCount(2, $filesystemLoader->getMethodCalls());
+        $this->assertCount(1, $nativeTwigLoader->getMethodCalls());
     }
 }

@@ -19,7 +19,7 @@ use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 
 class RequestTest extends TestCase
 {
-    protected function tearDown()
+    protected function tearDown(): void
     {
         Request::setTrustedProxies([], -1);
         Request::setTrustedHosts([]);
@@ -399,8 +399,34 @@ class RequestTest extends TestCase
         $this->assertEquals('xml', $dup->getRequestFormat());
     }
 
+    public function testGetPreferredFormat()
+    {
+        $request = new Request();
+        $this->assertNull($request->getPreferredFormat(null));
+        $this->assertSame('html', $request->getPreferredFormat());
+        $this->assertSame('json', $request->getPreferredFormat('json'));
+
+        $request->setRequestFormat('atom');
+        $request->headers->set('Accept', 'application/ld+json');
+        $request->headers->set('Content-Type', 'application/merge-patch+json');
+        $this->assertSame('atom', $request->getPreferredFormat());
+
+        $request = new Request();
+        $request->headers->set('Accept', 'application/xml');
+        $request->headers->set('Content-Type', 'application/json');
+        $this->assertSame('xml', $request->getPreferredFormat());
+
+        $request = new Request();
+        $request->headers->set('Accept', 'application/xml');
+        $this->assertSame('xml', $request->getPreferredFormat());
+
+        $request = new Request();
+        $request->headers->set('Accept', 'application/json;q=0.8,application/xml;q=0.9');
+        $this->assertSame('xml', $request->getPreferredFormat());
+    }
+
     /**
-     * @dataProvider getFormatToMimeTypeMapProviderWithAdditionalNullFormat
+     * @dataProvider getFormatToMimeTypeMapProvider
      */
     public function testGetFormatFromMimeType($format, $mimeTypes)
     {
@@ -416,14 +442,6 @@ class RequestTest extends TestCase
                 $this->assertEquals($mimeTypes[0], $request->getMimeType($format));
             }
         }
-    }
-
-    public function getFormatToMimeTypeMapProviderWithAdditionalNullFormat()
-    {
-        return array_merge(
-            [[null, [null, 'unexistent-mime-type']]],
-            $this->getFormatToMimeTypeMapProvider()
-        );
     }
 
     public function testGetFormatFromMimeTypeWithParameters()
@@ -783,14 +801,14 @@ class RequestTest extends TestCase
 
             // GET parameters, that are submitted from a HTML form, encode spaces as "+" by default (as defined in enctype application/x-www-form-urlencoded).
             // PHP also converts "+" to spaces when filling the global _GET or when using the function parse_str.
-            ['him=John%20Doe&her=Jane+Doe', 'her=Jane%20Doe&him=John%20Doe', 'normalizes spaces in both encodings "%20" and "+"'],
+            ['baz=Foo%20Baz&bar=Foo+Bar', 'bar=Foo%20Bar&baz=Foo%20Baz', 'normalizes spaces in both encodings "%20" and "+"'],
 
             ['foo[]=1&foo[]=2', 'foo%5B0%5D=1&foo%5B1%5D=2', 'allows array notation'],
             ['foo=1&foo=2', 'foo=2', 'merges repeated parameters'],
             ['pa%3Dram=foo%26bar%3Dbaz&test=test', 'pa%3Dram=foo%26bar%3Dbaz&test=test', 'works with encoded delimiters'],
             ['0', '0=', 'allows "0"'],
-            ['Jane Doe&John%20Doe', 'Jane_Doe=&John_Doe=', 'normalizes encoding in keys'],
-            ['her=Jane Doe&him=John%20Doe', 'her=Jane%20Doe&him=John%20Doe', 'normalizes encoding in values'],
+            ['Foo Bar&Foo%20Baz', 'Foo_Bar=&Foo_Baz=', 'normalizes encoding in keys'],
+            ['bar=Foo Bar&baz=Foo%20Baz', 'bar=Foo%20Bar&baz=Foo%20Baz', 'normalizes encoding in values'],
             ['foo=bar&&&test&&', 'foo=bar&test=', 'removes unneeded delimiters'],
             ['formula=e=m*c^2', 'formula=e%3Dm%2Ac%5E2', 'correctly treats only the first "=" as delimiter and the next as value'],
 
@@ -892,11 +910,9 @@ class RequestTest extends TestCase
         $this->assertEquals(80, $port, 'With only PROTO set and value is not recognized, getPort() defaults to 80.');
     }
 
-    /**
-     * @expectedException \RuntimeException
-     */
     public function testGetHostWithFakeHttpHostValue()
     {
+        $this->expectException('RuntimeException');
         $request = new Request();
         $request->initialize([], [], [], [], [], ['HTTP_HOST' => 'www.host.com?query=string']);
         $request->getHost();
@@ -1061,11 +1077,11 @@ class RequestTest extends TestCase
     }
 
     /**
-     * @expectedException \Symfony\Component\HttpFoundation\Exception\ConflictingHeadersException
      * @dataProvider getClientIpsWithConflictingHeadersProvider
      */
     public function testGetClientIpsWithConflictingHeaders($httpForwarded, $httpXForwardedFor)
     {
+        $this->expectException('Symfony\Component\HttpFoundation\Exception\ConflictingHeadersException');
         $request = new Request();
 
         $server = [
@@ -1159,7 +1175,7 @@ class RequestTest extends TestCase
     {
         $req = new Request();
         $retval = $req->getContent(true);
-        $this->assertInternalType('resource', $retval);
+        $this->assertIsResource($retval);
         $this->assertEquals('', fread($retval, 1));
         $this->assertTrue(feof($retval));
     }
@@ -1169,7 +1185,7 @@ class RequestTest extends TestCase
         $req = new Request([], [], [], [], [], [], 'MyContent');
         $resource = $req->getContent(true);
 
-        $this->assertInternalType('resource', $resource);
+        $this->assertIsResource($resource);
         $this->assertEquals('MyContent', stream_get_contents($resource));
     }
 
@@ -1541,7 +1557,6 @@ class RequestTest extends TestCase
         $request = new Request();
         $request->headers->set('Accept-language', 'zh, en-us; q=0.8, en; q=0.6');
         $this->assertEquals(['zh', 'en_US', 'en'], $request->getLanguages());
-        $this->assertEquals(['zh', 'en_US', 'en'], $request->getLanguages());
 
         $request = new Request();
         $request->headers->set('Accept-language', 'zh, en-us; q=0.6, en; q=0.8');
@@ -1603,15 +1618,6 @@ class RequestTest extends TestCase
         $this->assertObjectHasAttribute('attributeName', $session);
     }
 
-    /**
-     * @group legacy
-     * @expectedDeprecation Calling "Symfony\Component\HttpFoundation\Request::getSession()" when no session has been set is deprecated since Symfony 4.1 and will throw an exception in 5.0. Use "hasSession()" instead.
-     */
-    public function testGetSessionNullable()
-    {
-        (new Request())->getSession();
-    }
-
     public function testHasPreviousSession()
     {
         $request = new Request();
@@ -1632,14 +1638,14 @@ class RequestTest extends TestCase
 
         $asString = (string) $request;
 
-        $this->assertContains('Accept-Language: zh, en-us; q=0.8, en; q=0.6', $asString);
-        $this->assertContains('Cookie: Foo=Bar', $asString);
+        $this->assertStringContainsString('Accept-Language: zh, en-us; q=0.8, en; q=0.6', $asString);
+        $this->assertStringContainsString('Cookie: Foo=Bar', $asString);
 
         $request->cookies->set('Another', 'Cookie');
 
         $asString = (string) $request;
 
-        $this->assertContains('Cookie: Foo=Bar; Another=Cookie', $asString);
+        $this->assertStringContainsString('Cookie: Foo=Bar; Another=Cookie', $asString);
     }
 
     public function testIsMethod()
@@ -1780,7 +1786,7 @@ class RequestTest extends TestCase
         $property->setValue(false);
     }
 
-    private function getRequestInstanceForClientIpTests($remoteAddr, $httpForwardedFor, $trustedProxies)
+    private function getRequestInstanceForClientIpTests(string $remoteAddr, ?string $httpForwardedFor, ?array $trustedProxies): Request
     {
         $request = new Request();
 
@@ -1798,7 +1804,7 @@ class RequestTest extends TestCase
         return $request;
     }
 
-    private function getRequestInstanceForClientIpsForwardedTests($remoteAddr, $httpForwarded, $trustedProxies)
+    private function getRequestInstanceForClientIpsForwardedTests(string $remoteAddr, ?string $httpForwarded, ?array $trustedProxies): Request
     {
         $request = new Request();
 
@@ -2050,12 +2056,8 @@ class RequestTest extends TestCase
                 $this->assertSame($expectedPort, $request->getPort());
             }
         } else {
-            if (method_exists($this, 'expectException')) {
-                $this->expectException(SuspiciousOperationException::class);
-                $this->expectExceptionMessage('Invalid Host');
-            } else {
-                $this->setExpectedException(SuspiciousOperationException::class, 'Invalid Host');
-            }
+            $this->expectException(SuspiciousOperationException::class);
+            $this->expectExceptionMessage('Invalid Host');
 
             $request->getHost();
         }
@@ -2115,7 +2117,7 @@ class RequestTest extends TestCase
     {
         $request = new Request();
         $request->setMethod($method);
-        $this->assertEquals($safe, $request->isMethodSafe(false));
+        $this->assertEquals($safe, $request->isMethodSafe());
     }
 
     public function methodSafeProvider()
@@ -2132,16 +2134,6 @@ class RequestTest extends TestCase
             ['TRACE', true],
             ['CONNECT', false],
         ];
-    }
-
-    /**
-     * @expectedException \BadMethodCallException
-     */
-    public function testMethodSafeChecksCacheable()
-    {
-        $request = new Request();
-        $request->setMethod('OPTIONS');
-        $request->isMethodSafe();
     }
 
     /**
@@ -2302,6 +2294,38 @@ class RequestTest extends TestCase
         $request->headers->set('X-Forwarded-Port', 443);
 
         $this->assertSame(443, $request->getPort());
+    }
+
+    public function testTrustedPortDoesNotDefaultToZero()
+    {
+        Request::setTrustedProxies(['1.1.1.1'], Request::HEADER_X_FORWARDED_ALL);
+
+        $request = Request::create('/');
+        $request->server->set('REMOTE_ADDR', '1.1.1.1');
+        $request->headers->set('X-Forwarded-Host', 'test.example.com');
+        $request->headers->set('X-Forwarded-Port', '');
+
+        $this->assertSame(80, $request->getPort());
+    }
+
+    /**
+     * @dataProvider trustedProxiesRemoteAddr
+     */
+    public function testTrustedProxiesRemoteAddr($serverRemoteAddr, $trustedProxies, $result)
+    {
+        $_SERVER['REMOTE_ADDR'] = $serverRemoteAddr;
+        Request::setTrustedProxies($trustedProxies, Request::HEADER_X_FORWARDED_ALL);
+        $this->assertSame($result, Request::getTrustedProxies());
+    }
+
+    public function trustedProxiesRemoteAddr()
+    {
+        return [
+            ['1.1.1.1', ['REMOTE_ADDR'], ['1.1.1.1']],
+            ['1.1.1.1', ['REMOTE_ADDR', '2.2.2.2'], ['1.1.1.1', '2.2.2.2']],
+            [null, ['REMOTE_ADDR'], []],
+            [null, ['REMOTE_ADDR', '2.2.2.2'], ['2.2.2.2']],
+        ];
     }
 }
 

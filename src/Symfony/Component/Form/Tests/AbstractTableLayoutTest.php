@@ -339,7 +339,7 @@ abstract class AbstractTableLayoutTest extends AbstractLayoutTest
     {
         $this->csrfTokenManager->expects($this->any())
             ->method('getToken')
-            ->will($this->returnValue(new CsrfToken('token_id', 'foo&bar')));
+            ->willReturn(new CsrfToken('token_id', 'foo&bar'));
 
         $form = $this->factory->createNamedBuilder('name', 'Symfony\Component\Form\Extension\Core\Type\FormType')
             ->add($this->factory
@@ -470,7 +470,7 @@ abstract class AbstractTableLayoutTest extends AbstractLayoutTest
         // Insert the start tag, the end tag should be rendered by the helper
         // Unfortunately this is not valid HTML, because the surrounding table
         // tag is missing. If someone renders a form with table layout
-        // manually, she should call form_rest() explicitly within the <table>
+        // manually, they should call form_rest() explicitly within the <table>
         // tag.
         $this->assertMatchesXpath('<form>'.$html,
 '/form
@@ -519,7 +519,7 @@ abstract class AbstractTableLayoutTest extends AbstractLayoutTest
         $html = $this->renderWidget($form->createView());
 
         // compare plain HTML to check the whitespace
-        $this->assertContains('<table id="form" class="foobar" data-foo="bar">', $html);
+        $this->assertStringContainsString('<table id="form" class="foobar" data-foo="bar">', $html);
     }
 
     public function testWidgetContainerAttributeNameRepeatedIfTrue()
@@ -531,6 +531,6 @@ abstract class AbstractTableLayoutTest extends AbstractLayoutTest
         $html = $this->renderWidget($form->createView());
 
         // foo="foo"
-        $this->assertContains('<table id="form" foo="foo">', $html);
+        $this->assertStringContainsString('<table id="form" foo="foo">', $html);
     }
 }

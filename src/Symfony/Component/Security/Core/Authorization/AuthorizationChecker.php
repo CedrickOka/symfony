@@ -14,6 +14,7 @@ namespace Symfony\Component\Security\Core\Authorization;
 use Symfony\Component\Security\Core\Authentication\AuthenticationManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationCredentialsNotFoundException;
+use Symfony\Component\Security\Core\Exception\InvalidArgumentException;
 
 /**
  * AuthorizationChecker is the main authorization point of the Security component.
@@ -43,7 +44,7 @@ class AuthorizationChecker implements AuthorizationCheckerInterface
      *
      * @throws AuthenticationCredentialsNotFoundException when the token storage has no authentication token
      */
-    final public function isGranted($attributes, $subject = null)
+    final public function isGranted($attributes, $subject = null): bool
     {
         if (null === ($token = $this->tokenStorage->getToken())) {
             throw new AuthenticationCredentialsNotFoundException('The token storage contains no authentication token. One possible reason may be that there is no firewall configured for this URL.');
@@ -53,10 +54,10 @@ class AuthorizationChecker implements AuthorizationCheckerInterface
             $this->tokenStorage->setToken($token = $this->authenticationManager->authenticate($token));
         }
 
-        if (!\is_array($attributes)) {
-            $attributes = [$attributes];
+        if (\is_array($attributes)) {
+            throw new InvalidArgumentException(sprintf('Passing an array of Security attributes to %s() is not supported.', __METHOD__));
         }
 
-        return $this->accessDecisionManager->decide($token, $attributes, $subject);
+        return $this->accessDecisionManager->decide($token, [$attributes], $subject);
     }
 }

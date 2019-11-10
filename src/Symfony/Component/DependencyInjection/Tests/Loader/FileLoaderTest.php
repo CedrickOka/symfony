@@ -36,7 +36,7 @@ class FileLoaderTest extends TestCase
 {
     protected static $fixturesPath;
 
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         self::$fixturesPath = realpath(__DIR__.'/../');
     }
@@ -196,18 +196,16 @@ class FileLoaderTest extends TestCase
 
         $this->assertTrue($container->has(MissingParent::class));
 
-        $this->assertSame(
-            ['While discovering services from namespace "Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\BadClasses\", an error was thrown when processing the class "Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\BadClasses\MissingParent": "Class Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\BadClasses\MissingClass not found".'],
-            $container->getDefinition(MissingParent::class)->getErrors()
+        $this->assertRegExp(
+            '{Class "?Symfony\\\\Component\\\\DependencyInjection\\\\Tests\\\\Fixtures\\\\Prototype\\\\BadClasses\\\\MissingClass"? not found}',
+            $container->getDefinition(MissingParent::class)->getErrors()[0]
         );
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     * @expectedExceptionMessageRegExp /Expected to find class "Symfony\\Component\\DependencyInjection\\Tests\\Fixtures\\Prototype\\Bar" in file ".+" while importing services from resource "Prototype\/Sub\/\*", but it was not found\! Check the namespace prefix used with the resource/
-     */
     public function testRegisterClassesWithBadPrefix()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\InvalidArgumentException');
+        $this->expectExceptionMessageRegExp('/Expected to find class "Symfony\\\Component\\\DependencyInjection\\\Tests\\\Fixtures\\\Prototype\\\Bar" in file ".+" while importing services from resource "Prototype\/Sub\/\*", but it was not found\! Check the namespace prefix used with the resource/');
         $container = new ContainerBuilder();
         $loader = new TestFileLoader($container, new FileLocator(self::$fixturesPath.'/Fixtures'));
 
@@ -215,12 +213,10 @@ class FileLoaderTest extends TestCase
         $loader->registerClasses(new Definition(), 'Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\\', 'Prototype/Sub/*');
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\InvalidArgumentException
-     * @expectedExceptionMessage Invalid "exclude" pattern when importing classes for "Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\": make sure your "exclude" pattern (yaml/*) is a subset of the "resource" pattern (Prototype/*)
-     */
     public function testRegisterClassesWithIncompatibleExclude()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\InvalidArgumentException');
+        $this->expectExceptionMessage('Invalid "exclude" pattern when importing classes for "Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\": make sure your "exclude" pattern (yaml/*) is a subset of the "resource" pattern (Prototype/*)');
         $container = new ContainerBuilder();
         $loader = new TestFileLoader($container, new FileLocator(self::$fixturesPath.'/Fixtures'));
 
@@ -235,13 +231,19 @@ class FileLoaderTest extends TestCase
 
 class TestFileLoader extends FileLoader
 {
-    public function load($resource, $type = null)
+    public function load($resource, string $type = null)
     {
         return $resource;
     }
 
-    public function supports($resource, $type = null)
+    public function supports($resource, string $type = null): bool
     {
         return false;
+    }
+
+    public function registerClasses(Definition $prototype, $namespace, $resource, $exclude = null)
+    {
+        parent::registerClasses($prototype, $namespace, $resource, $exclude);
+        $this->registerAliasesForSinglyImplementedInterfaces();
     }
 }

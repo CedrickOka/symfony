@@ -41,17 +41,22 @@ class PhpFileLoader extends FileLoader
             return include $path;
         }, $this, ProtectedPhpFileLoader::class);
 
-        $callback = $load($path);
+        try {
+            $callback = $load($path);
 
-        if (\is_object($callback) && \is_callable($callback)) {
-            $callback(new ContainerConfigurator($this->container, $this, $this->instanceof, $path, $resource), $this->container, $this);
+            if (\is_object($callback) && \is_callable($callback)) {
+                $callback(new ContainerConfigurator($this->container, $this, $this->instanceof, $path, $resource), $this->container, $this);
+            }
+        } finally {
+            $this->instanceof = [];
+            $this->registerAliasesForSinglyImplementedInterfaces();
         }
     }
 
     /**
      * {@inheritdoc}
      */
-    public function supports($resource, $type = null)
+    public function supports($resource, string $type = null)
     {
         if (!\is_string($resource)) {
             return false;

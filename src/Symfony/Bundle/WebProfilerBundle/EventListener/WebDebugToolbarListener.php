@@ -16,7 +16,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\Flash\AutoExpireFlashBag;
-use Symfony\Component\HttpKernel\Event\FilterResponseEvent;
+use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Twig\Environment;
@@ -30,6 +30,8 @@ use Twig\Environment;
  * This means that the WDT is never included in sub-requests or ESI requests.
  *
  * @author Fabien Potencier <fabien@symfony.com>
+ *
+ * @final
  */
 class WebDebugToolbarListener implements EventSubscriberInterface
 {
@@ -53,12 +55,12 @@ class WebDebugToolbarListener implements EventSubscriberInterface
         $this->cspHandler = $cspHandler;
     }
 
-    public function isEnabled()
+    public function isEnabled(): bool
     {
         return self::DISABLED !== $this->mode;
     }
 
-    public function onKernelResponse(FilterResponseEvent $event)
+    public function onKernelResponse(ResponseEvent $event)
     {
         $response = $event->getResponse();
         $request = $event->getRequest();
@@ -85,9 +87,8 @@ class WebDebugToolbarListener implements EventSubscriberInterface
             return;
         }
 
-        if ($response->headers->has('X-Debug-Token') && $response->isRedirect() && $this->interceptRedirects) {
-            $session = $request->getSession();
-            if (null !== $session && $session->isStarted() && $session->getFlashBag() instanceof AutoExpireFlashBag) {
+        if ($response->headers->has('X-Debug-Token') && $response->isRedirect() && $this->interceptRedirects && 'html' === $request->getRequestFormat()) {
+            if ($request->hasSession() && ($session = $request->getSession())->isStarted() && $session->getFlashBag() instanceof AutoExpireFlashBag) {
                 // keep current flashes for one more request if using AutoExpireFlashBag
                 $session->getFlashBag()->setAll($session->getFlashBag()->peekAll());
             }
@@ -134,7 +135,7 @@ class WebDebugToolbarListener implements EventSubscriberInterface
         }
     }
 
-    public static function getSubscribedEvents()
+    public static function getSubscribedEvents(): array
     {
         return [
             KernelEvents::RESPONSE => ['onKernelResponse', -128],

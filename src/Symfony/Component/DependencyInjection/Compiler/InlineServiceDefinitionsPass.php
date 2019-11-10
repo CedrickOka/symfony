@@ -22,10 +22,9 @@ use Symfony\Component\DependencyInjection\Reference;
  *
  * @author Johannes M. Schmitt <schmittjoh@gmail.com>
  */
-class InlineServiceDefinitionsPass extends AbstractRecursivePass implements RepeatablePassInterface
+class InlineServiceDefinitionsPass extends AbstractRecursivePass
 {
     private $analyzingPass;
-    private $repeatedPass;
     private $cloningIds = [];
     private $connectedIds = [];
     private $notInlinedIds = [];
@@ -35,15 +34,6 @@ class InlineServiceDefinitionsPass extends AbstractRecursivePass implements Repe
     public function __construct(AnalyzeServiceReferencesPass $analyzingPass = null)
     {
         $this->analyzingPass = $analyzingPass;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function setRepeatedPass(RepeatedPass $repeatedPass)
-    {
-        @trigger_error(sprintf('The "%s()" method is deprecated since Symfony 4.2.', __METHOD__), E_USER_DEPRECATED);
-        $this->repeatedPass = $repeatedPass;
     }
 
     public function process(ContainerBuilder $container)
@@ -60,6 +50,7 @@ class InlineServiceDefinitionsPass extends AbstractRecursivePass implements Repe
             $analyzedContainer = $container;
         }
         try {
+            $remainingInlinedIds = [];
             $this->connectedIds = $this->notInlinedIds = $container->getDefinitions();
             do {
                 if ($this->analyzingPass) {
@@ -83,16 +74,22 @@ class InlineServiceDefinitionsPass extends AbstractRecursivePass implements Repe
                     }
                 }
 
-                foreach ($this->inlinedIds as $id => $isPublic) {
-                    if (!$isPublic) {
+                foreach ($this->inlinedIds as $id => $isPublicOrNotShared) {
+                    if ($isPublicOrNotShared) {
+                        $remainingInlinedIds[$id] = $id;
+                    } else {
                         $container->removeDefinition($id);
                         $analyzedContainer->removeDefinition($id);
                     }
                 }
             } while ($this->inlinedIds && $this->analyzingPass);
 
-            if ($this->inlinedIds && $this->repeatedPass) {
-                $this->repeatedPass->setRepeat();
+            foreach ($remainingInlinedIds as $id) {
+                $definition = $container->getDefinition($id);
+
+                if (!$definition->isShared() && !$definition->isPublic()) {
+                    $container->removeDefinition($id);
+                }
             }
         } finally {
             $this->container = null;
@@ -104,7 +101,7 @@ class InlineServiceDefinitionsPass extends AbstractRecursivePass implements Repe
     /**
      * {@inheritdoc}
      */
-    protected function processValue($value, $isRoot = false)
+    protected function processValue($value, bool $isRoot = false)
     {
         if ($value instanceof ArgumentInterface) {
             // Reference found in ArgumentInterface::getValues() are not inlineable
@@ -131,7 +128,7 @@ class InlineServiceDefinitionsPass extends AbstractRecursivePass implements Repe
         }
 
         $this->container->log($this, sprintf('Inlined service "%s" to "%s".', $id, $this->currentId));
-        $this->inlinedIds[$id] = $definition->isPublic();
+        $this->inlinedIds[$id] = $definition->isPublic() || !$definition->isShared();
         $this->notInlinedIds[$this->currentId] = true;
 
         if ($definition->isShared()) {
@@ -155,10 +152,8 @@ class InlineServiceDefinitionsPass extends AbstractRecursivePass implements Repe
 
     /**
      * Checks if the definition is inlineable.
-     *
-     * @return bool If the definition is inlineable
      */
-    private function isInlineableDefinition($id, Definition $definition)
+    private function isInlineableDefinition(string $id, Definition $definition): bool
     {
         if ($definition->hasErrors() || $definition->isDeprecated() || $definition->isLazy() || $definition->isSynthetic()) {
             return false;
@@ -214,10 +209,6 @@ class InlineServiceDefinitionsPass extends AbstractRecursivePass implements Repe
         }
 
         if ($srcCount > 1 && \is_array($factory = $definition->getFactory()) && ($factory[0] instanceof Reference || $factory[0] instanceof Definition)) {
-            return false;
-        }
-
-        if ($isReferencedByConstructor && $this->container->getDefinition($srcId)->isLazy() && ($definition->getProperties() || $definition->getMethodCalls() || $definition->getConfigurator())) {
             return false;
         }
 

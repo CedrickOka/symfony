@@ -24,9 +24,9 @@ class NonTraversableArrayObject implements \ArrayAccess, \Countable, \Serializab
         $this->array = $array ?: [];
     }
 
-    public function offsetExists($offset)
+    public function offsetExists($offset): bool
     {
-        return array_key_exists($offset, $this->array);
+        return \array_key_exists($offset, $this->array);
     }
 
     public function offsetGet($offset)
@@ -48,18 +48,28 @@ class NonTraversableArrayObject implements \ArrayAccess, \Countable, \Serializab
         unset($this->array[$offset]);
     }
 
-    public function count()
+    public function count(): int
     {
         return \count($this->array);
     }
 
-    public function serialize()
+    public function __serialize(): array
     {
-        return serialize($this->array);
+        return $this->array;
+    }
+
+    public function serialize(): string
+    {
+        return serialize($this->__serialize());
+    }
+
+    public function __unserialize(array $data): void
+    {
+        $this->array = $data;
     }
 
     public function unserialize($serialized)
     {
-        $this->array = (array) unserialize((string) $serialized);
+        $this->__unserialize((array) unserialize((string) $serialized));
     }
 }

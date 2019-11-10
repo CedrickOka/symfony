@@ -31,27 +31,23 @@ class PreAuthenticatedAuthenticationProviderTest extends TestCase
         $token
             ->expects($this->once())
             ->method('getProviderKey')
-            ->will($this->returnValue('foo'))
+            ->willReturn('foo')
         ;
         $this->assertFalse($provider->supports($token));
     }
 
-    /**
-     * @expectedException \Symfony\Component\Security\Core\Exception\AuthenticationException
-     * @expectedExceptionMessage The token is not supported by this authentication provider.
-     */
     public function testAuthenticateWhenTokenIsNotSupported()
     {
+        $this->expectException('Symfony\Component\Security\Core\Exception\AuthenticationException');
+        $this->expectExceptionMessage('The token is not supported by this authentication provider.');
         $provider = $this->getProvider();
 
         $provider->authenticate($this->getMockBuilder('Symfony\Component\Security\Core\Authentication\Token\TokenInterface')->getMock());
     }
 
-    /**
-     * @expectedException \Symfony\Component\Security\Core\Exception\BadCredentialsException
-     */
     public function testAuthenticateWhenNoUserIsSet()
     {
+        $this->expectException('Symfony\Component\Security\Core\Exception\BadCredentialsException');
         $provider = $this->getProvider();
         $provider->authenticate($this->getSupportedToken(''));
     }
@@ -62,7 +58,7 @@ class PreAuthenticatedAuthenticationProviderTest extends TestCase
         $user
             ->expects($this->once())
             ->method('getRoles')
-            ->will($this->returnValue([]))
+            ->willReturn([])
         ;
         $provider = $this->getProvider($user);
 
@@ -70,16 +66,14 @@ class PreAuthenticatedAuthenticationProviderTest extends TestCase
         $this->assertInstanceOf('Symfony\Component\Security\Core\Authentication\Token\PreAuthenticatedToken', $token);
         $this->assertEquals('pass', $token->getCredentials());
         $this->assertEquals('key', $token->getProviderKey());
-        $this->assertEquals([], $token->getRoles());
+        $this->assertEquals([], $token->getRoleNames());
         $this->assertEquals(['foo' => 'bar'], $token->getAttributes(), '->authenticate() copies token attributes');
         $this->assertSame($user, $token->getUser());
     }
 
-    /**
-     * @expectedException \Symfony\Component\Security\Core\Exception\LockedException
-     */
     public function testAuthenticateWhenUserCheckerThrowsException()
     {
+        $this->expectException('Symfony\Component\Security\Core\Exception\LockedException');
         $user = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock();
 
         $userChecker = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserCheckerInterface')->getMock();
@@ -99,20 +93,20 @@ class PreAuthenticatedAuthenticationProviderTest extends TestCase
         if (false !== $user) {
             $token->expects($this->once())
                   ->method('getUser')
-                  ->will($this->returnValue($user))
+                  ->willReturn($user)
             ;
         }
         if (false !== $credentials) {
             $token->expects($this->once())
                   ->method('getCredentials')
-                  ->will($this->returnValue($credentials))
+                  ->willReturn($credentials)
             ;
         }
 
         $token
             ->expects($this->any())
             ->method('getProviderKey')
-            ->will($this->returnValue('key'))
+            ->willReturn('key')
         ;
 
         $token->setAttributes(['foo' => 'bar']);
@@ -126,7 +120,7 @@ class PreAuthenticatedAuthenticationProviderTest extends TestCase
         if (null !== $user) {
             $userProvider->expects($this->once())
                          ->method('loadUserByUsername')
-                         ->will($this->returnValue($user))
+                         ->willReturn($user)
             ;
         }
 

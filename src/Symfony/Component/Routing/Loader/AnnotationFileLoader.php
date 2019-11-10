@@ -46,21 +46,25 @@ class AnnotationFileLoader extends FileLoader
      * @param string      $file A PHP file path
      * @param string|null $type The resource type
      *
-     * @return RouteCollection A RouteCollection instance
+     * @return RouteCollection|null A RouteCollection instance
      *
      * @throws \InvalidArgumentException When the file does not exist or its routes cannot be parsed
      */
-    public function load($file, $type = null)
+    public function load($file, string $type = null)
     {
         $path = $this->locator->locate($file);
 
         $collection = new RouteCollection();
         if ($class = $this->findClass($path)) {
+            $refl = new \ReflectionClass($class);
+            if ($refl->isAbstract()) {
+                return null;
+            }
+
             $collection->addResource(new FileResource($path));
             $collection->addCollection($this->loader->load($class, $type));
         }
 
-        // PHP 7 memory manager will not release after token_get_all(), see https://bugs.php.net/70098
         gc_mem_caches();
 
         return $collection;
@@ -69,7 +73,7 @@ class AnnotationFileLoader extends FileLoader
     /**
      * {@inheritdoc}
      */
-    public function supports($resource, $type = null)
+    public function supports($resource, string $type = null)
     {
         return \is_string($resource) && 'php' === pathinfo($resource, PATHINFO_EXTENSION) && (!$type || 'annotation' === $type);
     }
@@ -77,11 +81,9 @@ class AnnotationFileLoader extends FileLoader
     /**
      * Returns the full class name for the first class in the file.
      *
-     * @param string $file A PHP file path
-     *
      * @return string|false Full class name if found, false otherwise
      */
-    protected function findClass($file)
+    protected function findClass(string $file)
     {
         $class = false;
         $namespace = false;

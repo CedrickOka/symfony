@@ -37,10 +37,8 @@ class PrototypedArrayNode extends ArrayNode
     /**
      * Sets the minimum number of elements that a prototype based node must
      * contain. By default this is zero, meaning no elements.
-     *
-     * @param int $number
      */
-    public function setMinNumberOfElements($number)
+    public function setMinNumberOfElements(int $number)
     {
         $this->minNumberOfElements = $number;
     }
@@ -69,7 +67,7 @@ class PrototypedArrayNode extends ArrayNode
      * @param string $attribute The name of the attribute which value is to be used as a key
      * @param bool   $remove    Whether or not to remove the key
      */
-    public function setKeyAttribute($attribute, $remove = true)
+    public function setKeyAttribute(string $attribute, bool $remove = true)
     {
         $this->keyAttribute = $attribute;
         $this->removeKeyAttribute = $remove;
@@ -78,7 +76,7 @@ class PrototypedArrayNode extends ArrayNode
     /**
      * Retrieves the name of the attribute which value should be used as key.
      *
-     * @return string The name of the attribute
+     * @return string|null The name of the attribute
      */
     public function getKeyAttribute()
     {
@@ -87,17 +85,9 @@ class PrototypedArrayNode extends ArrayNode
 
     /**
      * Sets the default value of this node.
-     *
-     * @param string $value
-     *
-     * @throws \InvalidArgumentException if the default value is not an array
      */
-    public function setDefaultValue($value)
+    public function setDefaultValue(array $value)
     {
-        if (!\is_array($value)) {
-            throw new \InvalidArgumentException($this->getPath().': the default value of an array node has to be an array.');
-        }
-
         $this->defaultValue = $value;
     }
 
@@ -245,7 +235,7 @@ class PrototypedArrayNode extends ArrayNode
                     // if only "value" is left
                     if (array_keys($v) === ['value']) {
                         $v = $v['value'];
-                        if ($this->prototype instanceof ArrayNode && ($children = $this->prototype->getChildren()) && array_key_exists('value', $children)) {
+                        if ($this->prototype instanceof ArrayNode && ($children = $this->prototype->getChildren()) && \array_key_exists('value', $children)) {
                             $valuePrototype = current($this->valuePrototypes) ?: clone $children['value'];
                             $valuePrototype->parent = $this;
                             $originalClosures = $this->prototype->normalizationClosures;
@@ -258,7 +248,7 @@ class PrototypedArrayNode extends ArrayNode
                     }
                 }
 
-                if (array_key_exists($k, $normalized)) {
+                if (\array_key_exists($k, $normalized)) {
                     $ex = new DuplicateKeyException(sprintf('Duplicate key "%s" for path "%s".', $k, $this->getPath()));
                     $ex->setPath($this->getPath());
 
@@ -301,14 +291,14 @@ class PrototypedArrayNode extends ArrayNode
         }
 
         foreach ($rightSide as $k => $v) {
-            // prototype, and key is irrelevant, so simply append the element
+            // prototype, and key is irrelevant, append the element
             if (null === $this->keyAttribute) {
                 $leftSide[] = $v;
                 continue;
             }
 
             // no conflict
-            if (!array_key_exists($k, $leftSide)) {
+            if (!\array_key_exists($k, $leftSide)) {
                 if (!$this->allowNewKeys) {
                     $ex = new InvalidConfigurationException(sprintf('You are not allowed to define new elements for path "%s". Please define all elements for this path in one config file.', $this->getPath()));
                     $ex->setPath($this->getPath());

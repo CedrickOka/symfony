@@ -16,6 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\DataCollector\DataCollector;
 use Symfony\Component\HttpKernel\DataCollector\LateDataCollectorInterface;
 use Twig\Environment;
+use Twig\Error\LoaderError;
 use Twig\Markup;
 use Twig\Profiler\Dumper\HtmlDumper;
 use Twig\Profiler\Profile;
@@ -24,6 +25,8 @@ use Twig\Profiler\Profile;
  * TwigDataCollector.
  *
  * @author Fabien Potencier <fabien@symfony.com>
+ *
+ * @final
  */
 class TwigDataCollector extends DataCollector implements LateDataCollectorInterface
 {
@@ -40,7 +43,7 @@ class TwigDataCollector extends DataCollector implements LateDataCollectorInterf
     /**
      * {@inheritdoc}
      */
-    public function collect(Request $request, Response $response, \Exception $exception = null)
+    public function collect(Request $request, Response $response, \Throwable $exception = null)
     {
     }
 
@@ -70,7 +73,7 @@ class TwigDataCollector extends DataCollector implements LateDataCollectorInterf
             if ($profile->isTemplate()) {
                 try {
                     $template = $this->twig->load($name = $profile->getName());
-                } catch (\Twig_Error_Loader $e) {
+                } catch (LoaderError $e) {
                     $template = null;
                 }
 
@@ -126,10 +129,12 @@ class TwigDataCollector extends DataCollector implements LateDataCollectorInterf
             '<span style="background-color: #ffd">',
             '<span style="color: #d44">',
             '<span style="background-color: #dfd">',
+            '<span style="background-color: #ddf">',
         ], [
             '<span class="status-warning">',
             '<span class="status-error">',
             '<span class="status-success">',
+            '<span class="status-info">',
         ], $dump);
 
         return new Markup($dump, 'UTF-8');
@@ -144,7 +149,7 @@ class TwigDataCollector extends DataCollector implements LateDataCollectorInterf
         return $this->profile;
     }
 
-    private function getComputedData($index)
+    private function getComputedData(string $index)
     {
         if (null === $this->computed) {
             $this->computed = $this->computeData($this->getProfile());

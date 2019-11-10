@@ -171,7 +171,7 @@ class GraphvizDumper extends Dumper
         }
 
         foreach ($container->getServiceIds() as $id) {
-            if (array_key_exists($id, $container->getAliases())) {
+            if (\array_key_exists($id, $container->getAliases())) {
                 continue;
             }
 
@@ -183,7 +183,7 @@ class GraphvizDumper extends Dumper
         return $nodes;
     }
 
-    private function cloneContainer()
+    private function cloneContainer(): ContainerBuilder
     {
         $parameterBag = new ParameterBag($this->container->getParameterBag()->all());
 

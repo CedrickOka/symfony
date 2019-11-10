@@ -42,36 +42,54 @@ class Collection implements CollectionInterface
         return $this->entries;
     }
 
+    /**
+     * @return int
+     */
     public function count()
     {
-        if (false !== $count = ldap_count_entries($this->connection->getResource(), $this->search->getResource())) {
-            return $count;
+        $con = $this->connection->getResource();
+        $searches = $this->search->getResources();
+        $count = 0;
+        foreach ($searches as $search) {
+            $searchCount = ldap_count_entries($con, $search);
+            if (false === $searchCount) {
+                throw new LdapException(sprintf('Error while retrieving entry count: %s.', ldap_error($con)));
+            }
+            $count += $searchCount;
         }
 
-        throw new LdapException(sprintf('Error while retrieving entry count: %s.', ldap_error($this->connection->getResource())));
+        return $count;
     }
 
+    /**
+     * @return \Traversable
+     */
     public function getIterator()
     {
-        $con = $this->connection->getResource();
-        $search = $this->search->getResource();
-        $current = ldap_first_entry($con, $search);
-
         if (0 === $this->count()) {
             return;
         }
 
-        if (false === $current) {
-            throw new LdapException(sprintf('Could not rewind entries array: %s.', ldap_error($con)));
-        }
+        $con = $this->connection->getResource();
+        $searches = $this->search->getResources();
+        foreach ($searches as $search) {
+            $current = ldap_first_entry($con, $search);
 
-        yield $this->getSingleEntry($con, $current);
+            if (false === $current) {
+                throw new LdapException(sprintf('Could not rewind entries array: %s.', ldap_error($con)));
+            }
 
-        while (false !== $current = ldap_next_entry($con, $current)) {
             yield $this->getSingleEntry($con, $current);
+
+            while (false !== $current = ldap_next_entry($con, $current)) {
+                yield $this->getSingleEntry($con, $current);
+            }
         }
     }
 
+    /**
+     * @return bool
+     */
     public function offsetExists($offset)
     {
         $this->toArray();
@@ -100,7 +118,7 @@ class Collection implements CollectionInterface
         unset($this->entries[$offset]);
     }
 
-    private function getSingleEntry($con, $current)
+    private function getSingleEntry($con, $current): Entry
     {
         $attributes = ldap_get_attributes($con, $current);
 
@@ -119,7 +137,7 @@ class Collection implements CollectionInterface
         return new Entry($dn, $attributes);
     }
 
-    private function cleanupAttributes(array $entry)
+    private function cleanupAttributes(array $entry): array
     {
         $attributes = array_diff_key($entry, array_flip(range(0, $entry['count'] - 1)) + [
                 'count' => null,

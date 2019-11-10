@@ -31,16 +31,16 @@ class Exporter
      * @param int               &$objectsCount
      * @param bool              &$valuesAreStatic
      *
-     * @return int
+     * @return array
      *
      * @throws NotInstantiableTypeException When a value cannot be serialized
      */
-    public static function prepare($values, $objectsPool, &$refsPool, &$objectsCount, &$valuesAreStatic)
+    public static function prepare($values, $objectsPool, &$refsPool, &$objectsCount, &$valuesAreStatic): array
     {
         $refs = $values;
         foreach ($values as $k => $value) {
             if (\is_resource($value)) {
-                throw new NotInstantiableTypeException(\get_resource_type($value).' resource');
+                throw new NotInstantiableTypeException(get_resource_type($value).' resource');
             }
             $refs[$k] = $objectsPool;
 
@@ -74,10 +74,23 @@ class Exporter
             }
 
             $class = \get_class($value);
+            $reflector = Registry::$reflectors[$class] ?? Registry::getClassReflector($class);
+
+            if ($reflector->hasMethod('__serialize')) {
+                if (!$reflector->getMethod('__serialize')->isPublic()) {
+                    throw new \Error(sprintf('Call to %s method %s::__serialize()', $reflector->getMethod('__serialize')->isProtected() ? 'protected' : 'private', $class));
+                }
+
+                if (!\is_array($properties = $value->__serialize())) {
+                    throw new \Typerror($class.'::__serialize() must return an array');
+                }
+
+                goto prepare_value;
+            }
+
             $properties = [];
             $sleep = null;
             $arrayValue = (array) $value;
-            $reflector = Registry::$reflectors[$class] ?? Registry::getClassReflector($class);
             $proto = Registry::$prototypes[$class];
 
             if (($value instanceof \ArrayIterator || $value instanceof \ArrayObject) && null !== $proto) {
@@ -102,14 +115,14 @@ class Exporter
                 goto handle_value;
             }
 
-            if (\method_exists($class, '__sleep')) {
+            if (method_exists($class, '__sleep')) {
                 if (!\is_array($sleep = $value->__sleep())) {
                     trigger_error('serialize(): __sleep should return an array only containing the names of instance-variables to serialize', E_USER_NOTICE);
                     $value = null;
                     goto handle_value;
                 }
                 foreach ($sleep as $name) {
-                    if (\property_exists($value, $name) && !$reflector->hasProperty($name)) {
+                    if (property_exists($value, $name) && !$reflector->hasProperty($name)) {
                         $arrayValue[$name] = $value->$name;
                     }
                 }
@@ -142,7 +155,7 @@ class Exporter
                     }
                     $sleep[$n] = false;
                 }
-                if (!\array_key_exists($name, $proto) || $proto[$name] !== $v) {
+                if (!\array_key_exists($name, $proto) || $proto[$name] !== $v || "\x00Error\x00trace" === $name || "\x00Exception\x00trace" === $name) {
                     $properties[$c][$n] = $v;
                 }
             }
@@ -154,10 +167,11 @@ class Exporter
                 }
             }
 
+            prepare_value:
             $objectsPool[$value] = [$id = \count($objectsPool)];
             $properties = self::prepare($properties, $objectsPool, $refsPool, $objectsCount, $valueIsStatic);
             ++$objectsCount;
-            $objectsPool[$value] = [$id, $class, $properties, \method_exists($class, '__wakeup') ? $objectsCount : 0];
+            $objectsPool[$value] = [$id, $class, $properties, method_exists($class, '__unserialize') ? -$objectsCount : (method_exists($class, '__wakeup') ? $objectsCount : 0)];
 
             $value = new Reference($id);
 
@@ -173,7 +187,7 @@ class Exporter
         return $values;
     }
 
-    public static function export($value, $indent = '')
+    public static function export($value, string $indent = '')
     {
         switch (true) {
             case \is_int($value) || \is_float($value): return var_export($value, true);
@@ -277,7 +291,7 @@ class Exporter
                 continue;
             }
             if (!Registry::$instantiableWithoutConstructor[$class]) {
-                if (is_subclass_of($class, 'Serializable')) {
+                if (is_subclass_of($class, 'Serializable') && !method_exists($class, '__unserialize')) {
                     $serializables[$k] = 'C:'.\strlen($class).':"'.$class.'":0:{}';
                 } else {
                     $serializables[$k] = 'O:'.\strlen($class).':"'.$class.'":0:{}';

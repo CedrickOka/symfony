@@ -71,6 +71,7 @@ class FileLoaderTest extends TestCase
     public function testImportWithGlobLikeResource()
     {
         $locatorMock = $this->getMockBuilder('Symfony\Component\Config\FileLocatorInterface')->getMock();
+        $locatorMock->expects($this->once())->method('locate')->willReturn('');
         $loader = new TestFileLoader($locatorMock);
 
         $this->assertSame('[foo]', $loader->import('[foo]'));
@@ -79,6 +80,7 @@ class FileLoaderTest extends TestCase
     public function testImportWithNoGlobMatch()
     {
         $locatorMock = $this->getMockBuilder('Symfony\Component\Config\FileLocatorInterface')->getMock();
+        $locatorMock->expects($this->once())->method('locate')->willReturn('');
         $loader = new TestFileLoader($locatorMock);
 
         $this->assertNull($loader->import('./*.abc'));
@@ -90,18 +92,26 @@ class FileLoaderTest extends TestCase
 
         $this->assertSame(__FILE__, strtr($loader->import('FileLoaderTest.*'), '/', \DIRECTORY_SEPARATOR));
     }
+
+    public function testImportWithExclude()
+    {
+        $loader = new TestFileLoader(new FileLocator(__DIR__.'/../Fixtures'));
+        $loadedFiles = $loader->import('Include/*', null, false, null, __DIR__.'/../Fixtures/Include/{ExcludeFile.txt}');
+        $this->assertCount(2, $loadedFiles);
+        $this->assertNotContains('ExcludeFile.txt', $loadedFiles);
+    }
 }
 
 class TestFileLoader extends FileLoader
 {
     private $supports = true;
 
-    public function load($resource, $type = null)
+    public function load($resource, string $type = null)
     {
         return $resource;
     }
 
-    public function supports($resource, $type = null)
+    public function supports($resource, string $type = null): bool
     {
         return $this->supports;
     }

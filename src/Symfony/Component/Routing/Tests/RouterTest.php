@@ -22,10 +22,26 @@ class RouterTest extends TestCase
 
     private $loader = null;
 
-    protected function setUp()
+    private $cacheDir;
+
+    protected function setUp(): void
     {
         $this->loader = $this->getMockBuilder('Symfony\Component\Config\Loader\LoaderInterface')->getMock();
         $this->router = new Router($this->loader, 'routing.yml');
+
+        $this->cacheDir = sys_get_temp_dir().\DIRECTORY_SEPARATOR.uniqid('router_', true);
+    }
+
+    protected function tearDown(): void
+    {
+        if (is_dir($this->cacheDir)) {
+            array_map('unlink', glob($this->cacheDir.\DIRECTORY_SEPARATOR.'*'));
+            rmdir($this->cacheDir);
+        }
+
+        $this->loader = null;
+        $this->router = null;
+        $this->cacheDir = null;
     }
 
     public function testSetOptionsWithSupportedOptions()
@@ -41,12 +57,10 @@ class RouterTest extends TestCase
         $this->assertSame('ResourceType', $this->router->getOption('resource_type'));
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage The Router does not support the following options: "option_foo", "option_bar"
-     */
     public function testSetOptionsWithUnsupportedOptions()
     {
+        $this->expectException('InvalidArgumentException');
+        $this->expectExceptionMessage('The Router does not support the following options: "option_foo", "option_bar"');
         $this->router->setOptions([
             'cache_dir' => './cache',
             'option_foo' => true,
@@ -62,21 +76,17 @@ class RouterTest extends TestCase
         $this->assertSame('./cache', $this->router->getOption('cache_dir'));
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage The Router does not support the "option_foo" option
-     */
     public function testSetOptionWithUnsupportedOption()
     {
+        $this->expectException('InvalidArgumentException');
+        $this->expectExceptionMessage('The Router does not support the "option_foo" option');
         $this->router->setOption('option_foo', true);
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage The Router does not support the "option_foo" option
-     */
     public function testGetOptionWithUnsupportedOption()
     {
+        $this->expectException('InvalidArgumentException');
+        $this->expectExceptionMessage('The Router does not support the "option_foo" option');
         $this->router->getOption('option_foo', true);
     }
 
@@ -88,53 +98,31 @@ class RouterTest extends TestCase
 
         $this->loader->expects($this->once())
             ->method('load')->with('routing.yml', 'ResourceType')
-            ->will($this->returnValue($routeCollection));
+            ->willReturn($routeCollection);
 
         $this->assertSame($routeCollection, $this->router->getRouteCollection());
     }
 
-    /**
-     * @dataProvider provideMatcherOptionsPreventingCaching
-     */
-    public function testMatcherIsCreatedIfCacheIsNotConfigured($option)
+    public function testMatcherIsCreatedIfCacheIsNotConfigured()
     {
-        $this->router->setOption($option, null);
+        $this->router->setOption('cache_dir', null);
 
         $this->loader->expects($this->once())
             ->method('load')->with('routing.yml', null)
-            ->will($this->returnValue(new RouteCollection()));
+            ->willReturn(new RouteCollection());
 
         $this->assertInstanceOf('Symfony\\Component\\Routing\\Matcher\\UrlMatcher', $this->router->getMatcher());
     }
 
-    public function provideMatcherOptionsPreventingCaching()
+    public function testGeneratorIsCreatedIfCacheIsNotConfigured()
     {
-        return [
-            ['cache_dir'],
-            ['matcher_cache_class'],
-        ];
-    }
-
-    /**
-     * @dataProvider provideGeneratorOptionsPreventingCaching
-     */
-    public function testGeneratorIsCreatedIfCacheIsNotConfigured($option)
-    {
-        $this->router->setOption($option, null);
+        $this->router->setOption('cache_dir', null);
 
         $this->loader->expects($this->once())
             ->method('load')->with('routing.yml', null)
-            ->will($this->returnValue(new RouteCollection()));
+            ->willReturn(new RouteCollection());
 
         $this->assertInstanceOf('Symfony\\Component\\Routing\\Generator\\UrlGenerator', $this->router->getGenerator());
-    }
-
-    public function provideGeneratorOptionsPreventingCaching()
-    {
-        return [
-            ['cache_dir'],
-            ['generator_cache_class'],
-        ];
     }
 
     public function testMatchRequestWithUrlMatcherInterface()
@@ -159,5 +147,45 @@ class RouterTest extends TestCase
         $p->setValue($this->router, $matcher);
 
         $this->router->matchRequest(Request::create('/'));
+    }
+
+    public function testDefaultLocaleIsPassedToGeneratorClass()
+    {
+        $this->loader->expects($this->once())
+            ->method('load')->with('routing.yml', null)
+            ->willReturn(new RouteCollection());
+
+        $router = new Router($this->loader, 'routing.yml', [
+            'cache_dir' => null,
+        ], null, null, 'hr');
+
+        $generator = $router->getGenerator();
+
+        $this->assertInstanceOf('Symfony\Component\Routing\Generator\UrlGeneratorInterface', $generator);
+
+        $p = new \ReflectionProperty($generator, 'defaultLocale');
+        $p->setAccessible(true);
+
+        $this->assertSame('hr', $p->getValue($generator));
+    }
+
+    public function testDefaultLocaleIsPassedToCompiledGeneratorCacheClass()
+    {
+        $this->loader->expects($this->once())
+            ->method('load')->with('routing.yml', null)
+            ->willReturn(new RouteCollection());
+
+        $router = new Router($this->loader, 'routing.yml', [
+            'cache_dir' => $this->cacheDir,
+        ], null, null, 'hr');
+
+        $generator = $router->getGenerator();
+
+        $this->assertInstanceOf('Symfony\Component\Routing\Generator\UrlGeneratorInterface', $generator);
+
+        $p = new \ReflectionProperty($generator, 'defaultLocale');
+        $p->setAccessible(true);
+
+        $this->assertSame('hr', $p->getValue($generator));
     }
 }

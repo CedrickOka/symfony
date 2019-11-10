@@ -11,8 +11,6 @@
 
 namespace Symfony\Component\Security\Core\User;
 
-use Symfony\Component\Security\Core\Role\Role;
-
 /**
  * Represents the interface that all user classes must implement.
  *
@@ -44,7 +42,7 @@ interface UserInterface
      * and populated in any number of different ways when the user object
      * is created.
      *
-     * @return (Role|string)[] The user roles
+     * @return string[] The user roles
      */
     public function getRoles();
 
@@ -54,7 +52,7 @@ interface UserInterface
      * This should be the encoded password. On authentication, a plain-text
      * password will be salted, encoded, and then compared to this value.
      *
-     * @return string The password
+     * @return string|null The encoded password if any
      */
     public function getPassword();
 

@@ -28,7 +28,7 @@ use Symfony\Component\Yaml\Yaml;
 class YamlFileLoader extends FileLoader
 {
     private static $availableKeys = [
-        'resource', 'type', 'prefix', 'path', 'host', 'schemes', 'methods', 'defaults', 'requirements', 'options', 'condition', 'controller', 'name_prefix', 'trailing_slash_on_root',
+        'resource', 'type', 'prefix', 'path', 'host', 'schemes', 'methods', 'defaults', 'requirements', 'options', 'condition', 'controller', 'name_prefix', 'trailing_slash_on_root', 'locale', 'format', 'utf8', 'exclude',
     ];
     private $yamlParser;
 
@@ -42,7 +42,7 @@ class YamlFileLoader extends FileLoader
      *
      * @throws \InvalidArgumentException When a route can't be parsed because YAML is invalid
      */
-    public function load($file, $type = null)
+    public function load($file, string $type = null)
     {
         $path = $this->locator->locate($file);
 
@@ -93,7 +93,7 @@ class YamlFileLoader extends FileLoader
     /**
      * {@inheritdoc}
      */
-    public function supports($resource, $type = null)
+    public function supports($resource, string $type = null)
     {
         return \is_string($resource) && \in_array(pathinfo($resource, PATHINFO_EXTENSION), ['yml', 'yaml'], true) && (!$type || 'yaml' === $type);
     }
@@ -101,12 +101,11 @@ class YamlFileLoader extends FileLoader
     /**
      * Parses a route and adds it to the RouteCollection.
      *
-     * @param RouteCollection $collection A RouteCollection instance
-     * @param string          $name       Route name
-     * @param array           $config     Route definition
-     * @param string          $path       Full path of the YAML file being processed
+     * @param string $name   Route name
+     * @param array  $config Route definition
+     * @param string $path   Full path of the YAML file being processed
      */
-    protected function parseRoute(RouteCollection $collection, $name, array $config, $path)
+    protected function parseRoute(RouteCollection $collection, string $name, array $config, string $path)
     {
         $defaults = isset($config['defaults']) ? $config['defaults'] : [];
         $requirements = isset($config['requirements']) ? $config['requirements'] : [];
@@ -118,12 +117,21 @@ class YamlFileLoader extends FileLoader
 
         foreach ($requirements as $placeholder => $requirement) {
             if (\is_int($placeholder)) {
-                @trigger_error(sprintf('A placeholder name must be a string (%d given). Did you forget to specify the placeholder key for the requirement "%s" of route "%s" in "%s"?', $placeholder, $requirement, $name, $path), E_USER_DEPRECATED);
+                throw new \InvalidArgumentException(sprintf('A placeholder name must be a string (%d given). Did you forget to specify the placeholder key for the requirement "%s" of route "%s" in "%s"?', $placeholder, $requirement, $name, $path));
             }
         }
 
         if (isset($config['controller'])) {
             $defaults['_controller'] = $config['controller'];
+        }
+        if (isset($config['locale'])) {
+            $defaults['_locale'] = $config['locale'];
+        }
+        if (isset($config['format'])) {
+            $defaults['_format'] = $config['format'];
+        }
+        if (isset($config['utf8'])) {
+            $options['utf8'] = $config['utf8'];
         }
 
         if (\is_array($config['path'])) {
@@ -145,12 +153,11 @@ class YamlFileLoader extends FileLoader
     /**
      * Parses an import and adds the routes in the resource to the RouteCollection.
      *
-     * @param RouteCollection $collection A RouteCollection instance
-     * @param array           $config     Route definition
-     * @param string          $path       Full path of the YAML file being processed
-     * @param string          $file       Loaded file name
+     * @param array  $config Route definition
+     * @param string $path   Full path of the YAML file being processed
+     * @param string $file   Loaded file name
      */
-    protected function parseImport(RouteCollection $collection, array $config, $path, $file)
+    protected function parseImport(RouteCollection $collection, array $config, string $path, string $file)
     {
         $type = isset($config['type']) ? $config['type'] : null;
         $prefix = isset($config['prefix']) ? $config['prefix'] : '';
@@ -162,14 +169,24 @@ class YamlFileLoader extends FileLoader
         $schemes = isset($config['schemes']) ? $config['schemes'] : null;
         $methods = isset($config['methods']) ? $config['methods'] : null;
         $trailingSlashOnRoot = $config['trailing_slash_on_root'] ?? true;
+        $exclude = $config['exclude'] ?? null;
 
         if (isset($config['controller'])) {
             $defaults['_controller'] = $config['controller'];
         }
+        if (isset($config['locale'])) {
+            $defaults['_locale'] = $config['locale'];
+        }
+        if (isset($config['format'])) {
+            $defaults['_format'] = $config['format'];
+        }
+        if (isset($config['utf8'])) {
+            $options['utf8'] = $config['utf8'];
+        }
 
         $this->setCurrentDir(\dirname($path));
 
-        $imported = $this->import($config['resource'], $type, false, $file);
+        $imported = $this->import($config['resource'], $type, false, $file, $exclude) ?: [];
 
         if (!\is_array($imported)) {
             $imported = [$imported];
@@ -244,7 +261,7 @@ class YamlFileLoader extends FileLoader
      * @throws \InvalidArgumentException If one of the provided config keys is not supported,
      *                                   something is missing or the combination is nonsense
      */
-    protected function validate($config, $name, $path)
+    protected function validate($config, string $name, string $path)
     {
         if (!\is_array($config)) {
             throw new \InvalidArgumentException(sprintf('The definition of "%s" in "%s" must be a YAML array.', $name, $path));

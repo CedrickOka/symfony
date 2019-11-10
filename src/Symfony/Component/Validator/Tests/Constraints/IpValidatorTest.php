@@ -36,19 +36,15 @@ class IpValidatorTest extends ConstraintValidatorTestCase
         $this->assertNoViolation();
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\UnexpectedValueException
-     */
     public function testExpectsStringCompatibleType()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\UnexpectedValueException');
         $this->validator->validate(new \stdClass(), new Ip());
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\ConstraintDefinitionException
-     */
     public function testInvalidValidatorVersion()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\ConstraintDefinitionException');
         new Ip([
             'version' => 666,
         ]);
@@ -77,6 +73,31 @@ class IpValidatorTest extends ConstraintValidatorTestCase
             ['224.0.0.1'],
             ['255.255.255.255'],
             ['127.0.0.0'],
+        ];
+    }
+
+    /**
+     * @dataProvider getValidIpsV4WithWhitespaces
+     */
+    public function testValidIpsV4WithWhitespaces($ip)
+    {
+        $this->validator->validate($ip, new Ip([
+            'version' => Ip::V4,
+            'normalizer' => 'trim',
+        ]));
+
+        $this->assertNoViolation();
+    }
+
+    public function getValidIpsV4WithWhitespaces()
+    {
+        return [
+            ["\x200.0.0.0"],
+            ["\x09\x0910.0.0.0"],
+            ["123.45.67.178\x0A"],
+            ["172.16.0.0\x0D\x0D"],
+            ["\x00192.168.1.0\x00"],
+            ["\x0B\x0B224.0.0.1\x0B\x0B"],
         ];
     }
 
@@ -330,7 +351,7 @@ class IpValidatorTest extends ConstraintValidatorTestCase
     {
         // Quoting after official filter documentation:
         // "FILTER_FLAG_NO_RES_RANGE = This flag does not apply to IPv6 addresses."
-        // Full description: http://php.net/manual/en/filter.filters.flags.php
+        // Full description: https://php.net/filter.filters.flags
         return $this->getInvalidIpsV6();
     }
 

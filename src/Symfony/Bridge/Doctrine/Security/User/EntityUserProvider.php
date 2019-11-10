@@ -12,20 +12,24 @@
 namespace Symfony\Bridge\Doctrine\Security\User;
 
 use Doctrine\Common\Persistence\ManagerRegistry;
+use Doctrine\Common\Persistence\Mapping\ClassMetadata;
+use Doctrine\Common\Persistence\ObjectManager;
+use Doctrine\Common\Persistence\ObjectRepository;
 use Symfony\Component\Security\Core\Exception\UnsupportedUserException;
 use Symfony\Component\Security\Core\Exception\UsernameNotFoundException;
+use Symfony\Component\Security\Core\User\PasswordUpgraderInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Core\User\UserProviderInterface;
 
 /**
  * Wrapper around a Doctrine ObjectManager.
  *
- * Provides easy to use provisioning for Doctrine entity users.
+ * Provides provisioning for Doctrine entity users.
  *
  * @author Fabien Potencier <fabien@symfony.com>
  * @author Johannes M. Schmitt <schmittjoh@gmail.com>
  */
-class EntityUserProvider implements UserProviderInterface
+class EntityUserProvider implements UserProviderInterface, PasswordUpgraderInterface
 {
     private $registry;
     private $managerName;
@@ -44,7 +48,7 @@ class EntityUserProvider implements UserProviderInterface
     /**
      * {@inheritdoc}
      */
-    public function loadUserByUsername($username)
+    public function loadUserByUsername(string $username)
     {
         $repository = $this->getRepository();
         if (null !== $this->property) {
@@ -102,22 +106,38 @@ class EntityUserProvider implements UserProviderInterface
     /**
      * {@inheritdoc}
      */
-    public function supportsClass($class)
+    public function supportsClass(string $class)
     {
         return $class === $this->getClass() || is_subclass_of($class, $this->getClass());
     }
 
-    private function getObjectManager()
+    /**
+     * {@inheritdoc}
+     */
+    public function upgradePassword(UserInterface $user, string $newEncodedPassword): void
+    {
+        $class = $this->getClass();
+        if (!$user instanceof $class) {
+            throw new UnsupportedUserException(sprintf('Instances of "%s" are not supported.', \get_class($user)));
+        }
+
+        $repository = $this->getRepository();
+        if ($repository instanceof PasswordUpgraderInterface) {
+            $repository->upgradePassword($user, $newEncodedPassword);
+        }
+    }
+
+    private function getObjectManager(): ObjectManager
     {
         return $this->registry->getManager($this->managerName);
     }
 
-    private function getRepository()
+    private function getRepository(): ObjectRepository
     {
         return $this->getObjectManager()->getRepository($this->classOrAlias);
     }
 
-    private function getClass()
+    private function getClass(): string
     {
         if (null === $this->class) {
             $class = $this->classOrAlias;
@@ -132,7 +152,7 @@ class EntityUserProvider implements UserProviderInterface
         return $this->class;
     }
 
-    private function getClassMetadata()
+    private function getClassMetadata(): ClassMetadata
     {
         return $this->getObjectManager()->getClassMetadata($this->classOrAlias);
     }

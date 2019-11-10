@@ -35,6 +35,16 @@ abstract class KernelTestCase extends TestCase
      */
     protected static $container;
 
+    protected static $booted = false;
+
+    private static $kernelContainer;
+
+    protected function tearDown(): void
+    {
+        static::ensureKernelShutdown();
+        static::$kernel = null;
+    }
+
     /**
      * @return string The Kernel class name
      *
@@ -65,8 +75,9 @@ abstract class KernelTestCase extends TestCase
 
         static::$kernel = static::createKernel($options);
         static::$kernel->boot();
+        static::$booted = true;
 
-        $container = static::$kernel->getContainer();
+        self::$kernelContainer = $container = static::$kernel->getContainer();
         static::$container = $container->has('test.service_container') ? $container->get('test.service_container') : $container;
 
         return static::$kernel;
@@ -112,25 +123,19 @@ abstract class KernelTestCase extends TestCase
     }
 
     /**
-     * Shuts the kernel down if it was used in the test.
+     * Shuts the kernel down if it was used in the test - called by the tearDown method by default.
      */
     protected static function ensureKernelShutdown()
     {
         if (null !== static::$kernel) {
-            $container = static::$kernel->getContainer();
             static::$kernel->shutdown();
-            if ($container instanceof ResetInterface) {
-                $container->reset();
-            }
+            static::$booted = false;
         }
-        static::$container = null;
-    }
 
-    /**
-     * Clean up Kernel usage in this test.
-     */
-    protected function tearDown()
-    {
-        static::ensureKernelShutdown();
+        if (self::$kernelContainer instanceof ResetInterface) {
+            self::$kernelContainer->reset();
+        }
+
+        static::$container = self::$kernelContainer = null;
     }
 }

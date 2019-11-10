@@ -1,5 +1,5 @@
 {
-    "Version": "2.1.44.9",
+    "Version": "36",
     "Names": {
         "AM": "Arménia",
         "AX": "Alanda",
@@ -16,7 +16,6 @@
         "CZ": "Chéquia",
         "DJ": "Jibuti",
         "DM": "Domínica",
-        "EA": "Ceuta e Melilha",
         "EE": "Estónia",
         "EH": "Sara Ocidental",
         "FK": "Ilhas Malvinas (Falkland)",
@@ -36,8 +35,7 @@
         "MC": "Mónaco",
         "MD": "Moldávia",
         "MG": "Madagáscar",
-        "MK": "Macedónia",
-        "MO": "Macau, RAE da China",
+        "MK": "Macedónia do Norte",
         "MS": "Monserrate",
         "MU": "Maurícia",
         "MW": "Maláui",
@@ -50,6 +48,7 @@
         "SM": "São Marinho",
         "SV": "Salvador",
         "SX": "São Martinho (Sint Maarten)",
+        "TF": "Territórios Austrais Franceses",
         "TJ": "Tajiquistão",
         "TK": "Toquelau",
         "TM": "Turquemenistão",

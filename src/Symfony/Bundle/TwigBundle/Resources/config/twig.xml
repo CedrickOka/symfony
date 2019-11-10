@@ -2,7 +2,7 @@
 
 <container xmlns="http://symfony.com/schema/dic/services"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://symfony.com/schema/dic/services http://symfony.com/schema/dic/services/services-1.0.xsd">
+    xsi:schemaLocation="http://symfony.com/schema/dic/services https://symfony.com/schema/dic/services/services-1.0.xsd">
 
     <services>
         <defaults public="false" />
@@ -29,17 +29,8 @@
             <call method="setRequestStack"><argument type="service" id="request_stack" on-invalid="ignore" /></call>
         </service>
 
-        <service id="twig.cache_warmer" class="Symfony\Bundle\TwigBundle\CacheWarmer\TemplateCacheCacheWarmer">
-            <tag name="kernel.cache_warmer" />
-            <tag name="container.service_subscriber" id="twig" />
-            <argument type="service" id="Psr\Container\ContainerInterface" />
-            <argument type="service" id="templating.finder" on-invalid="ignore" />
-            <argument type="collection" /> <!-- Twig paths -->
-        </service>
-
         <service id="twig.template_iterator" class="Symfony\Bundle\TwigBundle\TemplateIterator">
             <argument type="service" id="kernel" />
-            <argument>%kernel.root_dir%</argument>
             <argument type="collection" /> <!-- Twig paths -->
             <argument>%twig.default_path%</argument>
         </service>
@@ -108,8 +99,7 @@
         </service>
 
         <service id="twig.extension.httpfoundation" class="Symfony\Bridge\Twig\Extension\HttpFoundationExtension">
-            <argument type="service" id="request_stack" />
-            <argument type="service" id="router.request_context" on-invalid="ignore" />
+            <argument type="service" id="url_helper" />
         </service>
 
         <service id="twig.extension.debug" class="Twig\Extension\DebugExtension" />
@@ -127,24 +117,6 @@
             <argument type="service" id="workflow.registry" />
         </service>
 
-        <service id="twig.exception_listener" class="Symfony\Component\HttpKernel\EventListener\ExceptionListener">
-            <tag name="kernel.event_subscriber" />
-            <tag name="monolog.logger" channel="request" />
-            <argument>%twig.exception_listener.controller%</argument>
-            <argument type="service" id="logger" on-invalid="null" />
-            <argument>%kernel.debug%</argument>
-        </service>
-
-        <service id="twig.controller.exception" class="Symfony\Bundle\TwigBundle\Controller\ExceptionController" public="true">
-            <argument type="service" id="twig" />
-            <argument>%kernel.debug%</argument>
-        </service>
-
-        <service id="twig.controller.preview_error" class="Symfony\Bundle\TwigBundle\Controller\PreviewErrorController" public="true">
-            <argument type="service" id="http_kernel" />
-            <argument>%twig.exception_listener.controller%</argument>
-        </service>
-
         <service id="twig.configurator.environment" class="Symfony\Bundle\TwigBundle\DependencyInjection\Configurator\EnvironmentConfigurator">
             <argument /> <!-- date format, set in TwigExtension -->
             <argument /> <!-- interval format, set in TwigExtension -->
@@ -156,6 +128,13 @@
 
         <service id="twig.runtime_loader" class="Twig\RuntimeLoader\ContainerRuntimeLoader">
             <argument /> <!-- runtime locator -->
+        </service>
+
+        <service id="twig.error_renderer.html" class="Symfony\Bundle\TwigBundle\ErrorRenderer\TwigHtmlErrorRenderer">
+            <tag name="error_renderer.renderer" priority="1" />
+            <argument type="service" id="twig" />
+            <argument type="service" id="error_renderer.renderer.html" />
+            <argument>%kernel.debug%</argument>
         </service>
     </services>
 </container>

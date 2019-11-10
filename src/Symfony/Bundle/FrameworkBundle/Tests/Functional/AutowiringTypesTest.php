@@ -13,13 +13,12 @@ namespace Symfony\Bundle\FrameworkBundle\Tests\Functional;
 
 use Doctrine\Common\Annotations\AnnotationReader;
 use Doctrine\Common\Annotations\CachedReader;
-use Symfony\Bundle\FrameworkBundle\Templating\EngineInterface as FrameworkBundleEngineInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpKernel\Debug\TraceableEventDispatcher;
-use Symfony\Component\Templating\EngineInterface as ComponentEngineInterface;
+use Symfony\Component\HttpKernel\KernelInterface;
 
-class AutowiringTypesTest extends WebTestCase
+class AutowiringTypesTest extends AbstractWebTestCase
 {
     public function testAnnotationReaderAutowiring()
     {
@@ -35,15 +34,6 @@ class AutowiringTypesTest extends WebTestCase
 
         $annotationReader = static::$container->get('test.autowiring_types.autowired_services')->getAnnotationReader();
         $this->assertInstanceOf(CachedReader::class, $annotationReader);
-    }
-
-    public function testTemplatingAutowiring()
-    {
-        static::bootKernel();
-
-        $autowiredServices = static::$container->get('test.autowiring_types.autowired_services');
-        $this->assertInstanceOf(FrameworkBundleEngineInterface::class, $autowiredServices->getFrameworkBundleEngine());
-        $this->assertInstanceOf(ComponentEngineInterface::class, $autowiredServices->getEngine());
     }
 
     public function testEventDispatcherAutowiring()
@@ -67,7 +57,7 @@ class AutowiringTypesTest extends WebTestCase
         $this->assertInstanceOf(FilesystemAdapter::class, $autowiredServices->getCachePool());
     }
 
-    protected static function createKernel(array $options = [])
+    protected static function createKernel(array $options = []): KernelInterface
     {
         return parent::createKernel(['test_case' => 'AutowiringTypes'] + $options);
     }

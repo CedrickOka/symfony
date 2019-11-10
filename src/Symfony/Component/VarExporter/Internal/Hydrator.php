@@ -42,8 +42,12 @@ class Hydrator
         foreach ($properties as $class => $vars) {
             (self::$hydrators[$class] ?? self::getHydrator($class))($vars, $objects);
         }
-        foreach ($wakeups as $i) {
-            $objects[$i]->__wakeup();
+        foreach ($wakeups as $k => $v) {
+            if (\is_array($v)) {
+                $objects[-$k]->__unserialize($v);
+            } else {
+                $objects[$v]->__wakeup();
+            }
         }
 
         return $value;
@@ -61,7 +65,7 @@ class Hydrator
             };
         }
 
-        if (!\class_exists($class) && !\interface_exists($class, false) && !\trait_exists($class, false)) {
+        if (!class_exists($class) && !interface_exists($class, false) && !trait_exists($class, false)) {
             throw new ClassNotFoundException($class);
         }
         $classReflector = new \ReflectionClass($class);

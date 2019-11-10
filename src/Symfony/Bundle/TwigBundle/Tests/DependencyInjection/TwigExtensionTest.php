@@ -13,6 +13,7 @@ namespace Symfony\Bundle\TwigBundle\Tests\DependencyInjection;
 
 use Symfony\Bundle\TwigBundle\DependencyInjection\Compiler\RuntimeLoaderPass;
 use Symfony\Bundle\TwigBundle\DependencyInjection\TwigExtension;
+use Symfony\Bundle\TwigBundle\Tests\DependencyInjection\AcmeBundle\AcmeBundle;
 use Symfony\Bundle\TwigBundle\Tests\TestCase;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
@@ -29,9 +30,7 @@ class TwigExtensionTest extends TestCase
     {
         $container = $this->createContainer();
         $container->registerExtension(new TwigExtension());
-        $container->loadFromExtension('twig', [
-            'strict_variables' => false, // to be removed in 5.0 relying on default
-        ]);
+        $container->loadFromExtension('twig');
         $this->compileContainer($container);
 
         $this->assertEquals('Twig\Environment', $container->getDefinition('twig')->getClass(), '->load() loads the twig.xml file');
@@ -155,7 +154,6 @@ class TwigExtensionTest extends TestCase
         $container->registerExtension(new TwigExtension());
         $container->loadFromExtension('twig', [
             'globals' => $globals,
-            'strict_variables' => false, // // to be removed in 5.0 relying on default
         ]);
         $this->compileContainer($container);
 
@@ -193,46 +191,9 @@ class TwigExtensionTest extends TestCase
             ['namespaced_path1', 'namespace1'],
             ['namespaced_path2', 'namespace2'],
             ['namespaced_path3', 'namespace3'],
-            [__DIR__.'/Fixtures/templates/bundles/TwigBundle', 'Twig'],
-            [realpath(__DIR__.'/../..').'/Resources/views', 'Twig'],
-            [realpath(__DIR__.'/../..').'/Resources/views', '!Twig'],
-            [__DIR__.'/Fixtures/templates'],
-        ], $paths);
-    }
-
-    /**
-     * @group legacy
-     * @dataProvider getFormats
-     * @expectedDeprecation Templates directory "%s/Resources/TwigBundle/views" is deprecated since Symfony 4.2, use "%s/templates/bundles/TwigBundle" instead.
-     * @expectedDeprecation Templates directory "%s/Resources/views" is deprecated since Symfony 4.2, use "%s/templates" instead.
-     */
-    public function testLegacyTwigLoaderPaths($format)
-    {
-        $container = $this->createContainer(__DIR__.'/../Fixtures/templates');
-        $container->registerExtension(new TwigExtension());
-        $this->loadFromFile($container, 'full', $format);
-        $this->loadFromFile($container, 'extra', $format);
-        $this->compileContainer($container);
-
-        $def = $container->getDefinition('twig.loader.native_filesystem');
-        $paths = [];
-        foreach ($def->getMethodCalls() as $call) {
-            if ('addPath' === $call[0] && false === strpos($call[1][0], 'Form')) {
-                $paths[] = $call[1];
-            }
-        }
-
-        $this->assertEquals([
-            ['path1'],
-            ['path2'],
-            ['namespaced_path1', 'namespace1'],
-            ['namespaced_path2', 'namespace2'],
-            ['namespaced_path3', 'namespace3'],
-            [__DIR__.'/../Fixtures/templates/Resources/TwigBundle/views', 'Twig'],
-            [__DIR__.'/Fixtures/templates/bundles/TwigBundle', 'Twig'],
-            [realpath(__DIR__.'/../..').'/Resources/views', 'Twig'],
-            [realpath(__DIR__.'/../..').'/Resources/views', '!Twig'],
-            [__DIR__.'/../Fixtures/templates/Resources/views'],
+            [__DIR__.'/Fixtures/templates/bundles/AcmeBundle', 'Acme'],
+            [__DIR__.'/AcmeBundle/Resources/views', 'Acme'],
+            [__DIR__.'/AcmeBundle/Resources/views', '!Acme'],
             [__DIR__.'/Fixtures/templates'],
         ], $paths);
     }
@@ -257,9 +218,7 @@ class TwigExtensionTest extends TestCase
             $container->register('debug.stopwatch', 'Symfony\Component\Stopwatch\Stopwatch');
         }
         $container->registerExtension(new TwigExtension());
-        $container->loadFromExtension('twig', [
-            'strict_variables' => false, // to be removed in 5.0 relying on default
-        ]);
+        $container->loadFromExtension('twig');
         $container->setAlias('test.twig.extension.debug.stopwatch', 'twig.extension.debug.stopwatch')->setPublic(true);
         $this->compileContainer($container);
 
@@ -284,18 +243,15 @@ class TwigExtensionTest extends TestCase
     {
         $container = $this->createContainer();
         $container->registerExtension(new TwigExtension());
-        $container->loadFromExtension('twig', [
-            'strict_variables' => false, // to be removed in 5.0 relying on default
-        ]);
+        $container->loadFromExtension('twig');
         $container->setParameter('kernel.environment', 'test');
         $container->setParameter('debug.file_link_format', 'test');
         $container->setParameter('foo', 'FooClass');
         $container->register('http_kernel', 'FooClass');
-        $container->register('templating.locator', 'FooClass');
-        $container->register('templating.name_parser', 'FooClass');
         $container->register('foo', '%foo%')->addTag('twig.runtime');
         $container->addCompilerPass(new RuntimeLoaderPass(), PassConfig::TYPE_BEFORE_REMOVING);
         $container->getCompilerPassConfig()->setRemovingPasses([]);
+        $container->getCompilerPassConfig()->setAfterRemovingPasses([]);
         $container->compile();
 
         $loader = $container->getDefinition('twig.runtime_loader');
@@ -306,21 +262,20 @@ class TwigExtensionTest extends TestCase
         $this->assertEquals('foo', $args['FooClass']->getValues()[0]);
     }
 
-    private function createContainer(string $rootDir = __DIR__.'/Fixtures')
+    private function createContainer()
     {
         $container = new ContainerBuilder(new ParameterBag([
             'kernel.cache_dir' => __DIR__,
-            'kernel.root_dir' => $rootDir,
             'kernel.project_dir' => __DIR__,
             'kernel.charset' => 'UTF-8',
             'kernel.debug' => false,
             'kernel.bundles' => [
-                'TwigBundle' => 'Symfony\\Bundle\\TwigBundle\\TwigBundle',
+                'AcmeBundle' => AcmeBundle::class,
             ],
             'kernel.bundles_metadata' => [
-                'TwigBundle' => [
-                    'namespace' => 'Symfony\\Bundle\\TwigBundle',
-                    'path' => realpath(__DIR__.'/../..'),
+                'AcmeBundle' => [
+                    'namespace' => 'Symfony\Bundle\TwigBundle\Tests\DependencyInjection\AcmeBundle',
+                    'path' => __DIR__.'/AcmeBundle',
                 ],
             ],
         ]));
@@ -332,6 +287,7 @@ class TwigExtensionTest extends TestCase
     {
         $container->getCompilerPassConfig()->setOptimizationPasses([]);
         $container->getCompilerPassConfig()->setRemovingPasses([]);
+        $container->getCompilerPassConfig()->setAfterRemovingPasses([]);
         $container->compile();
     }
 

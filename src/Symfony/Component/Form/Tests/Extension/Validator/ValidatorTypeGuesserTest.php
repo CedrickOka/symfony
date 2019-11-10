@@ -16,6 +16,7 @@ use Symfony\Component\Form\Extension\Validator\ValidatorTypeGuesser;
 use Symfony\Component\Form\Guess\Guess;
 use Symfony\Component\Form\Guess\ValueGuess;
 use Symfony\Component\Validator\Constraints\Email;
+use Symfony\Component\Validator\Constraints\File;
 use Symfony\Component\Validator\Constraints\IsTrue;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
@@ -23,6 +24,8 @@ use Symfony\Component\Validator\Constraints\NotNull;
 use Symfony\Component\Validator\Constraints\Range;
 use Symfony\Component\Validator\Constraints\Type;
 use Symfony\Component\Validator\Mapping\ClassMetadata;
+use Symfony\Component\Validator\Mapping\Factory\MetadataFactoryInterface;
+use Symfony\Component\Validator\Tests\Fixtures\FakeMetadataFactory;
 
 /**
  * @author franek <franek@chicour.net>
@@ -45,18 +48,15 @@ class ValidatorTypeGuesserTest extends TestCase
     private $metadata;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var MetadataFactoryInterface
      */
     private $metadataFactory;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->metadata = new ClassMetadata(self::TEST_CLASS);
-        $this->metadataFactory = $this->getMockBuilder('Symfony\Component\Validator\Mapping\Factory\MetadataFactoryInterface')->getMock();
-        $this->metadataFactory->expects($this->any())
-            ->method('getMetadataFor')
-            ->with(self::TEST_CLASS)
-            ->will($this->returnValue($this->metadata));
+        $this->metadataFactory = new FakeMetadataFactory();
+        $this->metadataFactory->addMetadata($this->metadata);
         $this->guesser = new ValidatorTypeGuesser($this->metadataFactory);
     }
 
@@ -66,7 +66,7 @@ class ValidatorTypeGuesserTest extends TestCase
             [new NotNull(), new ValueGuess(true, Guess::HIGH_CONFIDENCE)],
             [new NotBlank(), new ValueGuess(true, Guess::HIGH_CONFIDENCE)],
             [new IsTrue(), new ValueGuess(true, Guess::HIGH_CONFIDENCE)],
-            [new Length(10), new ValueGuess(false, Guess::LOW_CONFIDENCE)],
+            [new Length(['min' => 10, 'max' => 10, 'allowEmptyString' => true]), new ValueGuess(false, Guess::LOW_CONFIDENCE)],
             [new Range(['min' => 1, 'max' => 20]), new ValueGuess(false, Guess::LOW_CONFIDENCE)],
         ];
     }
@@ -102,10 +102,47 @@ class ValidatorTypeGuesserTest extends TestCase
 
     public function testGuessMaxLengthForConstraintWithMinValue()
     {
-        $constraint = new Length(['min' => '2']);
+        $constraint = new Length(['min' => '2', 'allowEmptyString' => true]);
 
         $result = $this->guesser->guessMaxLengthForConstraint($constraint);
         $this->assertNull($result);
+    }
+
+    public function testGuessMimeTypesForConstraintWithMimeTypesValue()
+    {
+        $mimeTypes = ['image/png', 'image/jpeg'];
+        $constraint = new File(['mimeTypes' => $mimeTypes]);
+        $typeGuess = $this->guesser->guessTypeForConstraint($constraint);
+        $this->assertInstanceOf('Symfony\Component\Form\Guess\TypeGuess', $typeGuess);
+        $this->assertArrayHasKey('attr', $typeGuess->getOptions());
+        $this->assertArrayHasKey('accept', $typeGuess->getOptions()['attr']);
+        $this->assertEquals(implode(',', $mimeTypes), $typeGuess->getOptions()['attr']['accept']);
+    }
+
+    public function testGuessMimeTypesForConstraintWithoutMimeTypesValue()
+    {
+        $constraint = new File();
+        $typeGuess = $this->guesser->guessTypeForConstraint($constraint);
+        $this->assertInstanceOf('Symfony\Component\Form\Guess\TypeGuess', $typeGuess);
+        $this->assertArrayNotHasKey('attr', $typeGuess->getOptions());
+    }
+
+    public function testGuessMimeTypesForConstraintWithMimeTypesStringValue()
+    {
+        $constraint = new File(['mimeTypes' => 'image/*']);
+        $typeGuess = $this->guesser->guessTypeForConstraint($constraint);
+        $this->assertInstanceOf('Symfony\Component\Form\Guess\TypeGuess', $typeGuess);
+        $this->assertArrayHasKey('attr', $typeGuess->getOptions());
+        $this->assertArrayHasKey('accept', $typeGuess->getOptions()['attr']);
+        $this->assertEquals('image/*', $typeGuess->getOptions()['attr']['accept']);
+    }
+
+    public function testGuessMimeTypesForConstraintWithMimeTypesEmptyStringValue()
+    {
+        $constraint = new File(['mimeTypes' => '']);
+        $typeGuess = $this->guesser->guessTypeForConstraint($constraint);
+        $this->assertInstanceOf('Symfony\Component\Form\Guess\TypeGuess', $typeGuess);
+        $this->assertArrayNotHasKey('attr', $typeGuess->getOptions());
     }
 
     public function maxLengthTypeProvider()

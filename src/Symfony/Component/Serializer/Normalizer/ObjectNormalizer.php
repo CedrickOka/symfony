@@ -32,15 +32,21 @@ class ObjectNormalizer extends AbstractObjectNormalizer
 
     private $discriminatorCache = [];
 
+    private $objectClassResolver;
+
     public function __construct(ClassMetadataFactoryInterface $classMetadataFactory = null, NameConverterInterface $nameConverter = null, PropertyAccessorInterface $propertyAccessor = null, PropertyTypeExtractorInterface $propertyTypeExtractor = null, ClassDiscriminatorResolverInterface $classDiscriminatorResolver = null, callable $objectClassResolver = null, array $defaultContext = [])
     {
-        if (!\class_exists(PropertyAccess::class)) {
+        if (!class_exists(PropertyAccess::class)) {
             throw new LogicException('The ObjectNormalizer class requires the "PropertyAccess" component. Install "symfony/property-access" to use it.');
         }
 
         parent::__construct($classMetadataFactory, $nameConverter, $propertyTypeExtractor, $classDiscriminatorResolver, $objectClassResolver, $defaultContext);
 
         $this->propertyAccessor = $propertyAccessor ?: PropertyAccess::createPropertyAccessor();
+
+        $this->objectClassResolver = $objectClassResolver ?? function ($class) {
+            return \is_object($class) ? \get_class($class) : $class;
+        };
     }
 
     /**
@@ -54,13 +60,15 @@ class ObjectNormalizer extends AbstractObjectNormalizer
     /**
      * {@inheritdoc}
      */
-    protected function extractAttributes($object, $format = null, array $context = [])
+    protected function extractAttributes(object $object, string $format = null, array $context = [])
     {
         // If not using groups, detect manually
         $attributes = [];
 
         // methods
-        $reflClass = new \ReflectionClass($object);
+        $class = ($this->objectClassResolver)($object);
+        $reflClass = new \ReflectionClass($class);
+
         foreach ($reflClass->getMethods(\ReflectionMethod::IS_PUBLIC) as $reflMethod) {
             if (
                 0 !== $reflMethod->getNumberOfRequiredParameters() ||
@@ -110,10 +118,10 @@ class ObjectNormalizer extends AbstractObjectNormalizer
     /**
      * {@inheritdoc}
      */
-    protected function getAttributeValue($object, $attribute, $format = null, array $context = [])
+    protected function getAttributeValue(object $object, string $attribute, string $format = null, array $context = [])
     {
         $cacheKey = \get_class($object);
-        if (!array_key_exists($cacheKey, $this->discriminatorCache)) {
+        if (!\array_key_exists($cacheKey, $this->discriminatorCache)) {
             $this->discriminatorCache[$cacheKey] = null;
             if (null !== $this->classDiscriminatorResolver) {
                 $mapping = $this->classDiscriminatorResolver->getMappingForMappedObject($object);
@@ -127,7 +135,7 @@ class ObjectNormalizer extends AbstractObjectNormalizer
     /**
      * {@inheritdoc}
      */
-    protected function setAttributeValue($object, $attribute, $value, $format = null, array $context = [])
+    protected function setAttributeValue(object $object, string $attribute, $value, string $format = null, array $context = [])
     {
         try {
             $this->propertyAccessor->setValue($object, $attribute, $value);
@@ -139,7 +147,7 @@ class ObjectNormalizer extends AbstractObjectNormalizer
     /**
      * {@inheritdoc}
      */
-    protected function getAllowedAttributes($classOrObject, array $context, $attributesAsString = false)
+    protected function getAllowedAttributes($classOrObject, array $context, bool $attributesAsString = false)
     {
         if (false === $allowedAttributes = parent::getAllowedAttributes($classOrObject, $context, $attributesAsString)) {
             return false;

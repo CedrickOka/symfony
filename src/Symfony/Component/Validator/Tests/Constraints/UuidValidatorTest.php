@@ -39,21 +39,17 @@ class UuidValidatorTest extends ConstraintValidatorTestCase
         $this->assertNoViolation();
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\UnexpectedTypeException
-     */
     public function testExpectsUuidConstraintCompatibleType()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\UnexpectedTypeException');
         $constraint = $this->getMockForAbstractClass('Symfony\\Component\\Validator\\Constraint');
 
         $this->validator->validate('216fff40-98d9-11e3-a5e2-0800200c9a66', $constraint);
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\UnexpectedValueException
-     */
     public function testExpectsStringCompatibleType()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\UnexpectedValueException');
         $this->validator->validate(new \stdClass(), new Uuid());
     }
 
@@ -82,6 +78,34 @@ class UuidValidatorTest extends ConstraintValidatorTestCase
             ['456daefb-5aa6-41b5-8dbc-068b05a8b201'], // Version 4 UUID in lowercase
             ['456daEFb-5AA6-41B5-8DBC-068B05A8B201'], // Version 4 UUID in mixed case
             ['456daEFb-5AA6-41B5-8DBC-068B05A8B201', [Uuid::V4_RANDOM]],
+        ];
+    }
+
+    /**
+     * @dataProvider getValidStrictUuidsWithWhitespaces
+     */
+    public function testValidStrictUuidsWithWhitespaces($uuid, $versions = null)
+    {
+        $constraint = new Uuid(['normalizer' => 'trim']);
+
+        if (null !== $versions) {
+            $constraint->versions = $versions;
+        }
+
+        $this->validator->validate($uuid, $constraint);
+
+        $this->assertNoViolation();
+    }
+
+    public function getValidStrictUuidsWithWhitespaces()
+    {
+        return [
+            ["\x20216fff40-98d9-11e3-a5e2-0800200c9a66"], // Version 1 UUID in lowercase
+            ["\x09\x09216fff40-98d9-11e3-a5e2-0800200c9a66", [Uuid::V1_MAC]],
+            ["216FFF40-98D9-11E3-A5E2-0800200C9A66\x0A"], // Version 1 UUID in UPPERCASE
+            ["456daefb-5aa6-41b5-8dbc-068b05a8b201\x0D\x0D"], // Version 4 UUID in lowercase
+            ["\x00456daEFb-5AA6-41B5-8DBC-068B05A8B201\x00"], // Version 4 UUID in mixed case
+            ["\x0B\x0B456daEFb-5AA6-41B5-8DBC-068B05A8B201\x0B\x0B", [Uuid::V4_RANDOM]],
         ];
     }
 

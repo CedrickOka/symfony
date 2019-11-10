@@ -20,12 +20,12 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
 {
     private static $serverBackup;
 
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         self::$serverBackup = $_SERVER;
     }
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -38,7 +38,7 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
         ];
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         parent::tearDown();
 
@@ -48,17 +48,15 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
         $_SERVER = self::$serverBackup;
     }
 
-    /**
-     * @expectedException \Symfony\Component\Form\Exception\UnexpectedTypeException
-     */
     public function testRequestShouldBeNull()
     {
-        $this->requestHandler->handleRequest($this->getMockForm('name', 'GET'), 'request');
+        $this->expectException('Symfony\Component\Form\Exception\UnexpectedTypeException');
+        $this->requestHandler->handleRequest($this->createForm('name', 'GET'), 'request');
     }
 
     public function testMethodOverrideHeaderTakesPrecedenceIfPost()
     {
-        $form = $this->getMockForm('param1', 'PUT');
+        $form = $this->createForm('param1', 'PUT');
 
         $this->setRequestData('POST', [
             'param1' => 'DATA',
@@ -66,16 +64,15 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
 
         $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] = 'PUT';
 
-        $form->expects($this->once())
-            ->method('submit')
-            ->with('DATA');
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertSame('DATA', $form->getData());
     }
 
     public function testConvertEmptyUploadedFilesToNull()
     {
-        $form = $this->getMockForm('param1', 'POST', false);
+        $form = $this->createForm('param1', 'POST', false);
 
         $this->setRequestData('POST', [], ['param1' => [
             'name' => '',
@@ -85,16 +82,17 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
             'size' => 0,
         ]]);
 
-        $form->expects($this->once())
-            ->method('submit')
-            ->with($this->identicalTo(null));
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertNull($form->getData());
     }
 
     public function testFixBuggyFilesArray()
     {
-        $form = $this->getMockForm('param1', 'POST', false);
+        $form = $this->createForm('param1', 'POST', true);
+        $fieldForm = $this->createBuilder('field', false, ['allow_file_upload' => true])->getForm();
+        $form->add($fieldForm);
 
         $this->setRequestData('POST', [], ['param1' => [
             'name' => [
@@ -114,24 +112,25 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
             ],
         ]]);
 
-        $form->expects($this->once())
-            ->method('submit')
-            ->with([
-                'field' => [
-                    'name' => 'upload.txt',
-                    'type' => 'text/plain',
-                    'tmp_name' => 'owfdskjasdfsa',
-                    'error' => UPLOAD_ERR_OK,
-                    'size' => 100,
-                ],
-            ]);
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertEquals([
+            'name' => 'upload.txt',
+            'type' => 'text/plain',
+            'tmp_name' => 'owfdskjasdfsa',
+            'error' => UPLOAD_ERR_OK,
+            'size' => 100,
+        ], $fieldForm->getData());
     }
 
     public function testFixBuggyNestedFilesArray()
     {
-        $form = $this->getMockForm('param1', 'POST');
+        $form = $this->createForm('param1', 'POST', true);
+        $fieldForm = $this->createForm('field', null, true);
+        $form->add($fieldForm);
+        $subfieldForm = $this->createBuilder('subfield', false, ['allow_file_upload' => true])->getForm();
+        $fieldForm->add($subfieldForm);
 
         $this->setRequestData('POST', [], ['param1' => [
             'name' => [
@@ -151,26 +150,21 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
             ],
         ]]);
 
-        $form->expects($this->once())
-            ->method('submit')
-            ->with([
-                'field' => [
-                    'subfield' => [
-                        'name' => 'upload.txt',
-                        'type' => 'text/plain',
-                        'tmp_name' => 'owfdskjasdfsa',
-                        'error' => UPLOAD_ERR_OK,
-                        'size' => 100,
-                    ],
-                ],
-            ]);
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($subfieldForm->isSubmitted());
+        $this->assertEquals([
+            'name' => 'upload.txt',
+            'type' => 'text/plain',
+            'tmp_name' => 'owfdskjasdfsa',
+            'error' => UPLOAD_ERR_OK,
+            'size' => 100,
+        ], $subfieldForm->getData());
     }
 
     public function testMethodOverrideHeaderIgnoredIfNotPost()
     {
-        $form = $this->getMockForm('param1', 'POST');
+        $form = $this->createForm('param1', 'POST');
 
         $this->setRequestData('GET', [
                 'param1' => 'DATA',
@@ -178,10 +172,62 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
 
         $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] = 'PUT';
 
-        $form->expects($this->never())
-            ->method('submit');
+        $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertFalse($form->isSubmitted());
+    }
+
+    public function testFormIgnoresMethodFieldIfRequestMethodIsMatched()
+    {
+        $form = $this->createForm('foo', 'PUT', true);
+        $form->add($this->createForm('bar'));
+
+        $this->setRequestData('PUT', [
+            'foo' => [
+                '_method' => 'PUT',
+                'bar' => 'baz',
+            ],
+        ]);
 
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertSame([], $form->getExtraData());
+    }
+
+    public function testFormDoesNotIgnoreMethodFieldIfRequestMethodIsNotMatched()
+    {
+        $form = $this->createForm('foo', 'PUT', true);
+        $form->add($this->createForm('bar'));
+
+        $this->setRequestData('PUT', [
+            'foo' => [
+                '_method' => 'DELETE',
+                'bar' => 'baz',
+            ],
+        ]);
+
+        $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertSame(['_method' => 'DELETE'], $form->getExtraData());
+    }
+
+    public function testMethodSubFormIsSubmitted()
+    {
+        $form = $this->createForm('foo', 'PUT', true);
+        $form->add($this->createForm('_method'));
+        $form->add($this->createForm('bar'));
+
+        $this->setRequestData('PUT', [
+            'foo' => [
+                '_method' => 'PUT',
+                'bar' => 'baz',
+            ],
+        ]);
+
+        $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->get('_method')->isSubmitted());
+        $this->assertSame('PUT', $form->get('_method')->getData());
     }
 
     protected function setRequestData($method, $data, $files = [])
@@ -206,7 +252,7 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
         return new NativeRequestHandler($this->serverParams);
     }
 
-    protected function getMockFile($suffix = '')
+    protected function getUploadedFile($suffix = '')
     {
         return [
             'name' => 'upload'.$suffix.'.txt',
@@ -225,6 +271,17 @@ class NativeRequestHandlerTest extends AbstractRequestHandlerTest
             'tmp_name' => 'owfdskjasdfsa',
             'error' => '0',
             'size' => '100',
+        ];
+    }
+
+    protected function getFailedUploadedFile($errorCode)
+    {
+        return [
+            'name' => 'upload.txt',
+            'type' => 'text/plain',
+            'tmp_name' => 'owfdskjasdfsa',
+            'error' => $errorCode,
+            'size' => 100,
         ];
     }
 }

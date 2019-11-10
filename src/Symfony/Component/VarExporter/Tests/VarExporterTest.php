@@ -20,12 +20,10 @@ class VarExporterTest extends TestCase
 {
     use VarDumperTestTrait;
 
-    /**
-     * @expectedException \Symfony\Component\VarExporter\Exception\ClassNotFoundException
-     * @expectedExceptionMessage Class "SomeNotExistingClass" not found.
-     */
     public function testPhpIncompleteClassesAreForbidden()
     {
+        $this->expectException('Symfony\Component\VarExporter\Exception\ClassNotFoundException');
+        $this->expectExceptionMessage('Class "SomeNotExistingClass" not found.');
         $unserializeCallback = ini_set('unserialize_callback_func', 'var_dump');
         try {
             Registry::unserialize([], ['O:20:"SomeNotExistingClass":0:{}']);
@@ -36,11 +34,11 @@ class VarExporterTest extends TestCase
 
     /**
      * @dataProvider provideFailingSerialization
-     * @expectedException \Symfony\Component\VarExporter\Exception\NotInstantiableTypeException
-     * @expectedExceptionMessageRegexp Type ".*" is not instantiable.
      */
     public function testFailingSerialization($value)
     {
+        $this->expectException('Symfony\Component\VarExporter\Exception\NotInstantiableTypeException');
+        $this->expectExceptionMessageRegExp('/Type ".*" is not instantiable\./');
         $expectedDump = $this->getDump($value);
         try {
             VarExporter::export($value);
@@ -82,13 +80,18 @@ class VarExporterTest extends TestCase
         $marshalledValue = VarExporter::export($value, $isStaticValue);
 
         $this->assertSame($staticValueExpected, $isStaticValue);
-        if ('var-on-sleep' !== $testName) {
+        if ('var-on-sleep' !== $testName && 'php74-serializable' !== $testName) {
             $this->assertDumpEquals($dumpedValue, $value);
         }
 
         $dump = "<?php\n\nreturn ".$marshalledValue.";\n";
         $dump = str_replace(var_export(__FILE__, true), "\\dirname(__DIR__).\\DIRECTORY_SEPARATOR.'VarExporterTest.php'", $dump);
-        $fixtureFile = __DIR__.'/Fixtures/'.$testName.'.php';
+
+        if (\PHP_VERSION_ID < 70400 && \in_array($testName, ['array-object', 'array-iterator', 'array-object-custom', 'spl-object-storage', 'final-array-iterator', 'final-error'], true)) {
+            $fixtureFile = __DIR__.'/Fixtures/'.$testName.'-legacy.php';
+        } else {
+            $fixtureFile = __DIR__.'/Fixtures/'.$testName.'.php';
+        }
         $this->assertStringEqualsFile($fixtureFile, $dump);
 
         if ('incomplete-class' === $testName || 'external-references' === $testName) {
@@ -197,12 +200,16 @@ class VarExporterTest extends TestCase
         yield ['abstract-parent', new ConcreteClass()];
 
         yield ['foo-serializable', new FooSerializable('bar')];
+
+        yield ['private-constructor', PrivateConstructor::create('bar')];
+
+        yield ['php74-serializable', new Php74Serializable()];
     }
 }
 
 class MySerializable implements \Serializable
 {
-    public function serialize()
+    public function serialize(): string
     {
         return '123';
     }
@@ -220,7 +227,7 @@ class MyWakeup
     public $baz;
     public $def = 234;
 
-    public function __sleep()
+    public function __sleep(): array
     {
         return ['sub', 'baz'];
     }
@@ -247,6 +254,21 @@ class MyNotCloneable
     private function __clone()
     {
         throw new \Exception('__clone should never be called');
+    }
+}
+
+class PrivateConstructor
+{
+    public $prop;
+
+    public static function create($prop): self
+    {
+        return new self($prop);
+    }
+
+    private function __construct($prop)
+    {
+        $this->prop = $prop;
     }
 }
 
@@ -283,7 +305,7 @@ class MyArrayObject extends \ArrayObject
 
 class GoodNight
 {
-    public function __sleep()
+    public function __sleep(): array
     {
         $this->good = 'night';
 
@@ -303,7 +325,7 @@ final class FinalError extends \Error
 
 final class FinalArrayIterator extends \ArrayIterator
 {
-    public function serialize()
+    public function serialize(): string
     {
         return serialize([123, parent::serialize()]);
     }
@@ -368,5 +390,38 @@ class FooSerializable implements \Serializable
     public function unserialize($str)
     {
         list($this->foo) = unserialize($str);
+    }
+}
+
+class Php74Serializable implements \Serializable
+{
+    public function __serialize(): array
+    {
+        return [$this->foo = new \stdClass()];
+    }
+
+    public function __unserialize(array $data)
+    {
+        list($this->foo) = $data;
+    }
+
+    public function __sleep(): array
+    {
+        throw new \BadMethodCallException();
+    }
+
+    public function __wakeup()
+    {
+        throw new \BadMethodCallException();
+    }
+
+    public function serialize(): string
+    {
+        throw new \BadMethodCallException();
+    }
+
+    public function unserialize($ser)
+    {
+        throw new \BadMethodCallException();
     }
 }

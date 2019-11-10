@@ -12,6 +12,10 @@
 namespace Symfony\Component\Form\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Form\Extension\Core\DataMapper\PropertyPathMapper;
+use Symfony\Component\Form\Form;
+use Symfony\Component\Form\FormBuilder;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormFactory;
 use Symfony\Component\Form\Forms;
@@ -36,7 +40,7 @@ abstract class AbstractRequestHandlerTest extends TestCase
 
     protected $serverParams;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->serverParams = $this->getMockBuilder('Symfony\Component\Form\Util\ServerParams')->setMethods(['getNormalizedIniPostMaxSize', 'getContentLength'])->getMock();
         $this->requestHandler = $this->getRequestHandler();
@@ -66,17 +70,16 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testSubmitIfNameInRequest($method)
     {
-        $form = $this->getMockForm('param1', $method);
+        $form = $this->createForm('param1', $method);
 
         $this->setRequestData($method, [
             'param1' => 'DATA',
         ]);
 
-        $form->expects($this->once())
-            ->method('submit')
-            ->with('DATA', 'PATCH' !== $method);
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertSame('DATA', $form->getData());
     }
 
     /**
@@ -84,7 +87,7 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testDoNotSubmitIfWrongRequestMethod($method)
     {
-        $form = $this->getMockForm('param1', $method);
+        $form = $this->createForm('param1', $method);
 
         $otherMethod = 'POST' === $method ? 'PUT' : 'POST';
 
@@ -92,10 +95,9 @@ abstract class AbstractRequestHandlerTest extends TestCase
             'param1' => 'DATA',
         ]);
 
-        $form->expects($this->never())
-            ->method('submit');
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertFalse($form->isSubmitted());
     }
 
     /**
@@ -103,16 +105,15 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testDoNoSubmitSimpleFormIfNameNotInRequestAndNotGetRequest($method)
     {
-        $form = $this->getMockForm('param1', $method, false);
+        $form = $this->createForm('param1', $method, false);
 
         $this->setRequestData($method, [
             'paramx' => [],
         ]);
 
-        $form->expects($this->never())
-            ->method('submit');
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertFalse($form->isSubmitted());
     }
 
     /**
@@ -120,30 +121,28 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testDoNotSubmitCompoundFormIfNameNotInRequestAndNotGetRequest($method)
     {
-        $form = $this->getMockForm('param1', $method, true);
+        $form = $this->createForm('param1', $method, true);
 
         $this->setRequestData($method, [
             'paramx' => [],
         ]);
 
-        $form->expects($this->never())
-            ->method('submit');
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertFalse($form->isSubmitted());
     }
 
     public function testDoNotSubmitIfNameNotInRequestAndGetRequest()
     {
-        $form = $this->getMockForm('param1', 'GET');
+        $form = $this->createForm('param1', 'GET');
 
         $this->setRequestData('GET', [
             'paramx' => [],
         ]);
 
-        $form->expects($this->never())
-            ->method('submit');
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertFalse($form->isSubmitted());
     }
 
     /**
@@ -151,24 +150,28 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testSubmitFormWithEmptyNameIfAtLeastOneFieldInRequest($method)
     {
-        $form = $this->getMockForm('', $method);
-        $form->expects($this->any())
-            ->method('all')
-            ->will($this->returnValue([
-                'param1' => $this->getMockForm('param1'),
-                'param2' => $this->getMockForm('param2'),
-            ]));
+        $form = $this->createForm('', $method, true);
+        $form->add($this->createForm('param1'));
+        $form->add($this->createForm('param2'));
 
         $this->setRequestData($method, $requestData = [
             'param1' => 'submitted value',
             'paramx' => 'submitted value',
         ]);
 
-        $form->expects($this->once())
-            ->method('submit')
-            ->with($requestData, 'PATCH' !== $method);
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertTrue($form->get('param1')->isSubmitted());
+        $this->assertSame('submitted value', $form->get('param1')->getData());
+
+        if ('PATCH' === $method) {
+            $this->assertFalse($form->get('param2')->isSubmitted());
+        } else {
+            $this->assertTrue($form->get('param2')->isSubmitted());
+        }
+
+        $this->assertNull($form->get('param2')->getData());
     }
 
     /**
@@ -176,22 +179,17 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testDoNotSubmitFormWithEmptyNameIfNoFieldInRequest($method)
     {
-        $form = $this->getMockForm('', $method);
-        $form->expects($this->any())
-            ->method('all')
-            ->will($this->returnValue([
-                'param1' => $this->getMockForm('param1'),
-                'param2' => $this->getMockForm('param2'),
-            ]));
+        $form = $this->createForm('', $method, true);
+        $form->add($this->createForm('param1'));
+        $form->add($this->createForm('param2'));
 
         $this->setRequestData($method, [
             'paramx' => 'submitted value',
         ]);
 
-        $form->expects($this->never())
-            ->method('submit');
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertFalse($form->isSubmitted());
     }
 
     /**
@@ -199,8 +197,10 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testMergeParamsAndFiles($method)
     {
-        $form = $this->getMockForm('param1', $method);
-        $file = $this->getMockFile();
+        $form = $this->createForm('param1', $method, true);
+        $form->add($this->createForm('field1'));
+        $form->add($this->createBuilder('field2', false, ['allow_file_upload' => true])->getForm());
+        $file = $this->getUploadedFile();
 
         $this->setRequestData($method, [
             'param1' => [
@@ -212,14 +212,11 @@ abstract class AbstractRequestHandlerTest extends TestCase
             ],
         ]);
 
-        $form->expects($this->once())
-            ->method('submit')
-            ->with([
-                'field1' => 'DATA',
-                'field2' => $file,
-            ], 'PATCH' !== $method);
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertSame('DATA', $form->get('field1')->getData());
+        $this->assertSame($file, $form->get('field2')->getData());
     }
 
     /**
@@ -227,8 +224,8 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testParamTakesPrecedenceOverFile($method)
     {
-        $form = $this->getMockForm('param1', $method);
-        $file = $this->getMockFile();
+        $form = $this->createForm('param1', $method);
+        $file = $this->getUploadedFile();
 
         $this->setRequestData($method, [
             'param1' => 'DATA',
@@ -236,11 +233,10 @@ abstract class AbstractRequestHandlerTest extends TestCase
             'param1' => $file,
         ]);
 
-        $form->expects($this->once())
-            ->method('submit')
-            ->with('DATA', 'PATCH' !== $method);
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertSame('DATA', $form->getData());
     }
 
     /**
@@ -248,8 +244,10 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testSubmitFileIfNoParam($method)
     {
-        $form = $this->getMockForm('param1', $method);
-        $file = $this->getMockFile();
+        $form = $this->createBuilder('param1', false, ['allow_file_upload' => true])
+            ->setMethod($method)
+            ->getForm();
+        $file = $this->getUploadedFile();
 
         $this->setRequestData($method, [
             'param1' => null,
@@ -257,11 +255,10 @@ abstract class AbstractRequestHandlerTest extends TestCase
             'param1' => $file,
         ]);
 
-        $form->expects($this->once())
-            ->method('submit')
-            ->with($file, 'PATCH' !== $method);
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertSame($file, $form->getData());
     }
 
     /**
@@ -269,22 +266,23 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testSubmitMultipleFiles($method)
     {
-        $form = $this->getMockForm('param1', $method);
-        $file = $this->getMockFile();
+        $form = $this->createBuilder('param1', false, ['allow_file_upload' => true])
+            ->setMethod($method)
+            ->getForm();
+        $file = $this->getUploadedFile();
 
         $this->setRequestData($method, [
             'param1' => null,
         ], [
-            'param2' => $this->getMockFile('2'),
+            'param2' => $this->getUploadedFile('2'),
             'param1' => $file,
-            'param3' => $this->getMockFile('3'),
+            'param3' => $this->getUploadedFile('3'),
         ]);
 
-        $form->expects($this->once())
-             ->method('submit')
-             ->with($file, 'PATCH' !== $method);
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertSame($file, $form->getData());
     }
 
     /**
@@ -292,20 +290,19 @@ abstract class AbstractRequestHandlerTest extends TestCase
      */
     public function testSubmitFileWithNamelessForm($method)
     {
-        $form = $this->getMockForm(null, $method);
-        $file = $this->getMockFile();
-
+        $form = $this->createForm('', $method, true);
+        $fileForm = $this->createBuilder('document', false, ['allow_file_upload' => true])->getForm();
+        $form->add($fileForm);
+        $file = $this->getUploadedFile();
         $this->setRequestData($method, [
-            '' => null,
+            'document' => null,
         ], [
-            '' => $file,
+            'document' => $file,
         ]);
-
-        $form->expects($this->once())
-             ->method('submit')
-             ->with($file, 'PATCH' !== $method);
-
         $this->requestHandler->handleRequest($form, $this->request);
+
+        $this->assertTrue($form->isSubmitted());
+        $this->assertSame($file, $fileForm->getData());
     }
 
     /**
@@ -315,10 +312,10 @@ abstract class AbstractRequestHandlerTest extends TestCase
     {
         $this->serverParams->expects($this->once())
             ->method('getContentLength')
-            ->will($this->returnValue($contentLength));
+            ->willReturn($contentLength);
         $this->serverParams->expects($this->any())
             ->method('getNormalizedIniPostMaxSize')
-            ->will($this->returnValue($iniMax));
+            ->willReturn($iniMax);
 
         $options = ['post_max_size_message' => 'Max {{ max }}!'];
         $form = $this->factory->createNamed('name', 'Symfony\Component\Form\Extension\Core\Type\TextType', null, $options);
@@ -349,13 +346,13 @@ abstract class AbstractRequestHandlerTest extends TestCase
             [1024, '1K', false],
             [null, '1K', false],
             [1024, '', false],
-            [1024, 0, false],
+            [1024, '0', false],
         ];
     }
 
     public function testUploadedFilesAreAccepted()
     {
-        $this->assertTrue($this->requestHandler->isFileUpload($this->getMockFile()));
+        $this->assertTrue($this->requestHandler->isFileUpload($this->getUploadedFile()));
     }
 
     public function testInvalidFilesAreRejected()
@@ -363,32 +360,58 @@ abstract class AbstractRequestHandlerTest extends TestCase
         $this->assertFalse($this->requestHandler->isFileUpload($this->getInvalidFile()));
     }
 
+    /**
+     * @dataProvider uploadFileErrorCodes
+     */
+    public function testFailedFileUploadIsTurnedIntoFormError($errorCode, $expectedErrorCode)
+    {
+        $this->assertSame($expectedErrorCode, $this->requestHandler->getUploadFileError($this->getFailedUploadedFile($errorCode)));
+    }
+
+    public function uploadFileErrorCodes()
+    {
+        return [
+            'no error' => [UPLOAD_ERR_OK, null],
+            'upload_max_filesize ini directive' => [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_INI_SIZE],
+            'MAX_FILE_SIZE from form' => [UPLOAD_ERR_FORM_SIZE, UPLOAD_ERR_FORM_SIZE],
+            'partially uploaded' => [UPLOAD_ERR_PARTIAL, UPLOAD_ERR_PARTIAL],
+            'no file upload' => [UPLOAD_ERR_NO_FILE, UPLOAD_ERR_NO_FILE],
+            'missing temporary directory' => [UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_NO_TMP_DIR],
+            'write failure' => [UPLOAD_ERR_CANT_WRITE, UPLOAD_ERR_CANT_WRITE],
+            'stopped by extension' => [UPLOAD_ERR_EXTENSION, UPLOAD_ERR_EXTENSION],
+        ];
+    }
+
     abstract protected function setRequestData($method, $data, $files = []);
 
     abstract protected function getRequestHandler();
 
-    abstract protected function getMockFile($suffix = '');
+    abstract protected function getUploadedFile($suffix = '');
 
     abstract protected function getInvalidFile();
 
-    protected function getMockForm($name, $method = null, $compound = true)
+    abstract protected function getFailedUploadedFile($errorCode);
+
+    protected function createForm($name, $method = null, $compound = false)
     {
-        $config = $this->getMockBuilder('Symfony\Component\Form\FormConfigInterface')->getMock();
-        $config->expects($this->any())
-            ->method('getMethod')
-            ->will($this->returnValue($method));
-        $config->expects($this->any())
-            ->method('getCompound')
-            ->will($this->returnValue($compound));
+        $config = $this->createBuilder($name, $compound);
 
-        $form = $this->getMockBuilder('Symfony\Component\Form\Test\FormInterface')->getMock();
-        $form->expects($this->any())
-            ->method('getName')
-            ->will($this->returnValue($name));
-        $form->expects($this->any())
-            ->method('getConfig')
-            ->will($this->returnValue($config));
+        if (null !== $method) {
+            $config->setMethod($method);
+        }
 
-        return $form;
+        return new Form($config);
+    }
+
+    protected function createBuilder($name, $compound = false, array $options = [])
+    {
+        $builder = new FormBuilder($name, null, new EventDispatcher(), $this->getMockBuilder('Symfony\Component\Form\FormFactoryInterface')->getMock(), $options);
+        $builder->setCompound($compound);
+
+        if ($compound) {
+            $builder->setDataMapper(new PropertyPathMapper());
+        }
+
+        return $builder;
     }
 }

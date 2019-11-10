@@ -1,13 +1,82 @@
 CHANGELOG
 =========
 
+5.0.0
+-----
+
+ * Removed support to load translation resources from the legacy directories `src/Resources/translations/` and `src/Resources/<BundleName>/translations/`
+ * Removed `ControllerNameParser`.
+ * Removed `ResolveControllerNameSubscriber`
+ * Removed support for `bundle:controller:action` to reference controllers. Use `serviceOrFqcn::method` instead
+ * Removed support for PHP templating, use Twig instead
+ * Removed `Controller`, use `AbstractController` instead
+ * Removed `Client`, use `KernelBrowser` instead
+ * Removed `ContainerAwareCommand`, use dependency injection instead
+ * Removed the `validation.strict_email` option, use `validation.email_validation_mode` instead
+ * Removed the `cache.app.simple` service and its corresponding PSR-16 autowiring alias
+ * Removed cache-related compiler passes and `RequestDataCollector`
+ * Removed the `translator.selector` and `session.save_listener` services
+ * Removed `SecurityUserValueResolver`, use `UserValueResolver` instead
+ * Removed `routing.loader.service`.
+ * Service route loaders must be tagged with `routing.route_loader`. 
+ * Added `slugger` service and `SluggerInterface` alias
+ * Removed the `lock.store.flock`, `lock.store.semaphore`, `lock.store.memcached.abstract` and `lock.store.redis.abstract` services.
+
+4.4.0
+-----
+
+ * Added `lint:container` command to check that services wiring matches type declarations
+ * Added `MailerAssertionsTrait`
+ * Deprecated support for `templating` engine in `TemplateController`, use Twig instead
+ * Deprecated the `$parser` argument of `ControllerResolver::__construct()` and `DelegatingLoader::__construct()`
+ * Deprecated the `controller_name_converter` and `resolve_controller_name_subscriber` services
+ * The `ControllerResolver` and `DelegatingLoader` classes have been marked as `final`
+ * Added support for configuring chained cache pools
+ * Deprecated calling `WebTestCase::createClient()` while a kernel has been booted, ensure the kernel is shut down before calling the method
+ * Deprecated `routing.loader.service`, use `routing.loader.container` instead.
+ * Not tagging service route loaders with `routing.route_loader` has been deprecated.
+ * Overriding the methods `KernelTestCase::tearDown()` and `WebTestCase::tearDown()` without the `void` return-type is deprecated.
+ * Added new `error_controller` configuration to handle system exceptions
+ * Added sort option for `translation:update` command.
+ * [BC Break] The `framework.messenger.routing.senders` config key is not deep merged anymore.
+ * Added `secrets:*` commands and `%env(secret:...)%` processor to deal with secrets seamlessly.
+ * Made `framework.session.handler_id` accept a DSN
+ * Marked the `RouterDataCollector` class as `@final`.
+
 4.3.0
 -----
 
+ * Deprecated the `framework.templating` option, configure the Twig bundle instead.
+ * Added `WebTestAssertionsTrait` (included by default in `WebTestCase`)
+ * Renamed `Client` to `KernelBrowser`
  * Not passing the project directory to the constructor of the `AssetsInstallCommand` is deprecated. This argument will
    be mandatory in 5.0.
- * Added `ControllerTrait::isFormValid()`
- * Added an `help_html` form option to display the `help` text as HTML
+ * Deprecated the "Psr\SimpleCache\CacheInterface" / "cache.app.simple" service, use "Symfony\Contracts\Cache\CacheInterface" / "cache.app" instead
+ * Added the ability to specify a custom `serializer` option for each
+   transport under`framework.messenger.transports`.
+ * Added the `RegisterLocaleAwareServicesPass` and configured the `LocaleAwareListener`
+ * [BC Break] When using Messenger, the default transport changed from
+   using Symfony's serializer service to use `PhpSerializer`, which uses
+   PHP's native `serialize()` and `unserialize()` functions. To use the
+   original serialization method, set the `framework.messenger.default_serializer`
+   config option to `messenger.transport.symfony_serializer`. Or set the
+   `serializer` option under one specific `transport`.
+ * [BC Break] The `framework.messenger.serializer` config key changed to
+   `framework.messenger.default_serializer`, which holds the string service
+   id and `framework.messenger.symfony_serializer`, which configures the
+   options if you're using Symfony's serializer.
+ * [BC Break] Removed the `framework.messenger.routing.send_and_handle` configuration.
+   Instead of setting it to true, configure a `SyncTransport` and route messages to it.
+ * Added information about deprecated aliases in `debug:autowiring` 
+ * Added php ini session options `sid_length` and `sid_bits_per_character` 
+   to the `session` section of the configuration
+ * Added support for Translator paths, Twig paths in translation commands.
+ * Added support for PHP files with translations in translation commands.
+ * Added support for boolean container parameters within routes.
+ * Added the `messenger:setup-transports` command to setup messenger transports
+ * Added a `InMemoryTransport` to Messenger. Use it with a DSN starting with `in-memory://`.
+ * Added `framework.property_access.throw_exception_on_invalid_property_path` config option.
+ * Added `cache:pool:list` command to list all available cache pools.
 
 4.2.0
 -----
@@ -142,7 +211,7 @@ CHANGELOG
    The default value will be `state_machine` in Symfony 4.0.
  * Deprecated the `CompilerDebugDumpPass` class
  * Deprecated the "framework.trusted_proxies" configuration option and the corresponding "kernel.trusted_proxies" parameter
- * Added a new new version strategy option called json_manifest_path
+ * Added a new version strategy option called "json_manifest_path"
    that allows you to use the `JsonManifestVersionStrategy`.
  * Added `Symfony\Bundle\FrameworkBundle\Controller\AbstractController`. It provides
    the same helpers as the `Controller` class, but does not allow accessing the dependency

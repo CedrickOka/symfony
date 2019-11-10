@@ -16,18 +16,18 @@ use Psr\Container\ContainerInterface;
 use Symfony\Bundle\FrameworkBundle\Routing\Router;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\Config\ContainerParametersResource;
+use Symfony\Component\DependencyInjection\Container;
+use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
 
 class RouterTest extends TestCase
 {
-    /**
-     * @expectedException \LogicException
-     * @expectedExceptionMessage You should either pass a "Symfony\Component\DependencyInjection\ContainerInterface" instance or provide the $parameters argument of the "Symfony\Bundle\FrameworkBundle\Routing\Router::__construct" method
-     */
     public function testConstructThrowsOnNonSymfonyNorPsr11Container()
     {
-        new Router($this->getMockBuilder(ContainerInterface::class)->getMock(), 'foo');
+        $this->expectException('LogicException');
+        $this->expectExceptionMessage('You should either pass a "Symfony\Component\DependencyInjection\ContainerInterface" instance or provide the $parameters argument of the "Symfony\Bundle\FrameworkBundle\Routing\Router::__construct" method');
+        new Router($this->createMock(ContainerInterface::class), 'foo');
     }
 
     public function testGenerateWithServiceParam()
@@ -80,6 +80,32 @@ class RouterTest extends TestCase
         $this->assertSame('/en', $router->generate('foo', ['_locale' => 'en']));
         $this->assertSame('/', $router->generate('foo', ['_locale' => 'es']));
         $this->assertSame('"bar" == "bar"', $router->getRouteCollection()->get('foo')->getCondition());
+    }
+
+    public function testGenerateWithDefaultLocale()
+    {
+        $routes = new RouteCollection();
+
+        $route = new Route('');
+
+        $name = 'testFoo';
+
+        foreach (['hr' => '/test-hr', 'en' => '/test-en'] as $locale => $path) {
+            $localizedRoute = clone $route;
+            $localizedRoute->setDefault('_locale', $locale);
+            $localizedRoute->setDefault('_canonical_route', $name);
+            $localizedRoute->setPath($path);
+            $routes->add($name.'.'.$locale, $localizedRoute);
+        }
+
+        $sc = $this->getServiceContainer($routes);
+
+        $router = new Router($sc, '', [], null, null, null, 'hr');
+
+        $this->assertSame('/test-hr', $router->generate($name));
+
+        $this->assertSame('/test-en', $router->generate($name, ['_locale' => 'en']));
+        $this->assertSame('/test-hr', $router->generate($name, ['_locale' => 'hr']));
     }
 
     public function testDefaultsPlaceholders()
@@ -254,23 +280,21 @@ class RouterTest extends TestCase
         $routes->add('foo', new Route('/before/%parameter.foo%/after/%%escaped%%'));
 
         $sc = $this->getServiceContainer($routes);
-        $sc->setParameter('parameter.foo', 'foo');
+        $sc->setParameter('parameter.foo', 'foo-%%escaped%%');
 
         $router = new Router($sc, 'foo');
         $route = $router->getRouteCollection()->get('foo');
 
         $this->assertEquals(
-            '/before/foo/after/%escaped%',
+            '/before/foo-%escaped%/after/%escaped%',
             $route->getPath()
         );
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
-     * @expectedExceptionMessage Using "%env(FOO)%" is not allowed in routing configuration.
-     */
     public function testEnvPlaceholders()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\RuntimeException');
+        $this->expectExceptionMessage('Using "%env(FOO)%" is not allowed in routing configuration.');
         $routes = new RouteCollection();
 
         $routes->add('foo', new Route('/%env(FOO)%'));
@@ -279,17 +303,31 @@ class RouterTest extends TestCase
         $router->getRouteCollection();
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
-     * @expectedExceptionMessage Using "%env(FOO)%" is not allowed in routing configuration.
-     */
     public function testEnvPlaceholdersWithSfContainer()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\RuntimeException');
+        $this->expectExceptionMessage('Using "%env(FOO)%" is not allowed in routing configuration.');
         $routes = new RouteCollection();
 
         $routes->add('foo', new Route('/%env(FOO)%'));
 
         $router = new Router($this->getServiceContainer($routes), 'foo');
+        $router->getRouteCollection();
+    }
+
+    public function testIndirectEnvPlaceholders()
+    {
+        $routes = new RouteCollection();
+
+        $routes->add('foo', new Route('/%foo%'));
+
+        $router = new Router($container = $this->getServiceContainer($routes), 'foo');
+        $container->setParameter('foo', 'foo-%bar%');
+        $container->setParameter('bar', '%env(string:FOO)%');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Using "%env(string:FOO)%" is not allowed in routing configuration.');
+
         $router->getRouteCollection();
     }
 
@@ -335,12 +373,10 @@ class RouterTest extends TestCase
         );
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException
-     * @expectedExceptionMessage You have requested a non-existent parameter "nope".
-     */
     public function testExceptionOnNonExistentParameterWithSfContainer()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException');
+        $this->expectExceptionMessage('You have requested a non-existent parameter "nope".');
         $routes = new RouteCollection();
 
         $routes->add('foo', new Route('/%nope%'));
@@ -351,12 +387,10 @@ class RouterTest extends TestCase
         $router->getRouteCollection()->get('foo');
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
-     * @expectedExceptionMessage The container parameter "object", used in the route configuration value "/%object%", must be a string or numeric, but it is of type object.
-     */
     public function testExceptionOnNonStringParameter()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\RuntimeException');
+        $this->expectExceptionMessage('The container parameter "object", used in the route configuration value "/%object%", must be a string or numeric, but it is of type object.');
         $routes = new RouteCollection();
 
         $routes->add('foo', new Route('/%object%'));
@@ -368,12 +402,10 @@ class RouterTest extends TestCase
         $router->getRouteCollection()->get('foo');
     }
 
-    /**
-     * @expectedException \Symfony\Component\DependencyInjection\Exception\RuntimeException
-     * @expectedExceptionMessage The container parameter "object", used in the route configuration value "/%object%", must be a string or numeric, but it is of type object.
-     */
     public function testExceptionOnNonStringParameterWithSfContainer()
     {
+        $this->expectException('Symfony\Component\DependencyInjection\Exception\RuntimeException');
+        $this->expectExceptionMessage('The container parameter "object", used in the route configuration value "/%object%", must be a string or numeric, but it is of type object.');
         $routes = new RouteCollection();
 
         $routes->add('foo', new Route('/%object%'));
@@ -447,22 +479,37 @@ class RouterTest extends TestCase
         $this->assertEquals([new ContainerParametersResource(['locale' => 'en'])], $routeCollection->getResources());
     }
 
+    public function testBooleanContainerParametersWithinRouteCondition()
+    {
+        $routes = new RouteCollection();
+
+        $route = new Route('foo');
+        $route->setCondition('%parameter.true% or %parameter.false%');
+
+        $routes->add('foo', $route);
+
+        $sc = $this->getPsr11ServiceContainer($routes);
+        $parameters = $this->getParameterBag(['parameter.true' => true, 'parameter.false' => false]);
+
+        $router = new Router($sc, 'foo', [], null, $parameters);
+        $route = $router->getRouteCollection()->get('foo');
+
+        $this->assertSame('1 or 0', $route->getCondition());
+    }
+
     public function getNonStringValues()
     {
         return [[null], [false], [true], [new \stdClass()], [['foo', 'bar']], [[[]]]];
     }
 
-    /**
-     * @return \Symfony\Component\DependencyInjection\Container
-     */
-    private function getServiceContainer(RouteCollection $routes)
+    private function getServiceContainer(RouteCollection $routes): Container
     {
         $loader = $this->getMockBuilder('Symfony\Component\Config\Loader\LoaderInterface')->getMock();
 
         $loader
             ->expects($this->any())
             ->method('load')
-            ->will($this->returnValue($routes))
+            ->willReturn($routes)
         ;
 
         $sc = $this->getMockBuilder('Symfony\\Component\\DependencyInjection\\Container')->setMethods(['get'])->getMock();
@@ -470,7 +517,7 @@ class RouterTest extends TestCase
         $sc
             ->expects($this->once())
             ->method('get')
-            ->will($this->returnValue($loader))
+            ->willReturn($loader)
         ;
 
         return $sc;
@@ -483,7 +530,7 @@ class RouterTest extends TestCase
         $loader
             ->expects($this->any())
             ->method('load')
-            ->will($this->returnValue($routes))
+            ->willReturn($routes)
         ;
 
         $sc = $this->getMockBuilder(ContainerInterface::class)->getMock();
@@ -491,7 +538,7 @@ class RouterTest extends TestCase
         $sc
             ->expects($this->once())
             ->method('get')
-            ->will($this->returnValue($loader))
+            ->willReturn($loader)
         ;
 
         return $sc;
@@ -503,9 +550,9 @@ class RouterTest extends TestCase
         $bag
             ->expects($this->any())
             ->method('get')
-            ->will($this->returnCallback(function ($key) use ($params) {
+            ->willReturnCallback(function ($key) use ($params) {
                 return isset($params[$key]) ? $params[$key] : null;
-            }))
+            })
         ;
 
         return $bag;

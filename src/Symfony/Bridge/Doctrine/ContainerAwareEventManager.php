@@ -29,6 +29,7 @@ class ContainerAwareEventManager extends EventManager
      */
     private $listeners = [];
     private $initialized = [];
+    private $methods = [];
     private $container;
 
     public function __construct(ContainerInterface $container)
@@ -37,51 +38,55 @@ class ContainerAwareEventManager extends EventManager
     }
 
     /**
-     * Dispatches an event to all registered listeners.
+     * {@inheritdoc}
      *
-     * @param string    $eventName The name of the event to dispatch. The name of the event is
-     *                             the name of the method that is invoked on listeners.
-     * @param EventArgs $eventArgs The event arguments to pass to the event handlers/listeners.
-     *                             If not supplied, the single empty EventArgs instance is used.
-     *
-     * @return bool
+     * @return void
      */
     public function dispatchEvent($eventName, EventArgs $eventArgs = null)
     {
-        if (isset($this->listeners[$eventName])) {
-            $eventArgs = null === $eventArgs ? EventArgs::getEmptyInstance() : $eventArgs;
+        if (!isset($this->listeners[$eventName])) {
+            return;
+        }
 
-            $initialized = isset($this->initialized[$eventName]);
+        $eventArgs = null === $eventArgs ? EventArgs::getEmptyInstance() : $eventArgs;
 
-            foreach ($this->listeners[$eventName] as $hash => $listener) {
-                if (!$initialized && \is_string($listener)) {
-                    $this->listeners[$eventName][$hash] = $listener = $this->container->get($listener);
-                }
+        if (!isset($this->initialized[$eventName])) {
+            $this->initializeListeners($eventName);
+        }
 
-                $listener->$eventName($eventArgs);
-            }
-            $this->initialized[$eventName] = true;
+        foreach ($this->listeners[$eventName] as $hash => $listener) {
+            $listener->{$this->methods[$eventName][$hash]}($eventArgs);
         }
     }
 
     /**
-     * Gets the listeners of a specific event or all listeners.
+     * {@inheritdoc}
      *
-     * @param string $event The name of the event
-     *
-     * @return array The event listeners for the specified event, or all event listeners
+     * @return object[][]
      */
     public function getListeners($event = null)
     {
-        return $event ? $this->listeners[$event] : $this->listeners;
+        if (null !== $event) {
+            if (!isset($this->initialized[$event])) {
+                $this->initializeListeners($event);
+            }
+
+            return $this->listeners[$event];
+        }
+
+        foreach ($this->listeners as $event => $listeners) {
+            if (!isset($this->initialized[$event])) {
+                $this->initializeListeners($event);
+            }
+        }
+
+        return $this->listeners;
     }
 
     /**
-     * Checks whether an event has any registered listeners.
+     * {@inheritdoc}
      *
-     * @param string $event
-     *
-     * @return bool TRUE if the specified event has any listeners, FALSE otherwise
+     * @return bool
      */
     public function hasListeners($event)
     {
@@ -89,53 +94,81 @@ class ContainerAwareEventManager extends EventManager
     }
 
     /**
-     * Adds an event listener that listens on the specified events.
+     * {@inheritdoc}
      *
-     * @param string|array  $events   The event(s) to listen on
-     * @param object|string $listener The listener object
-     *
-     * @throws \RuntimeException
+     * @return void
      */
     public function addEventListener($events, $listener)
     {
-        if (\is_string($listener)) {
-            if ($this->initialized) {
-                throw new \RuntimeException('Adding lazy-loading listeners after construction is not supported.');
-            }
-
-            $hash = '_service_'.$listener;
-        } else {
-            // Picks the hash code related to that listener
-            $hash = spl_object_hash($listener);
-        }
+        $hash = $this->getHash($listener);
 
         foreach ((array) $events as $event) {
             // Overrides listener if a previous one was associated already
             // Prevents duplicate listeners on same event (same instance only)
             $this->listeners[$event][$hash] = $listener;
+
+            if (\is_string($listener)) {
+                unset($this->initialized[$event]);
+            } else {
+                $this->methods[$event][$hash] = $this->getMethod($listener, $event);
+            }
         }
     }
 
     /**
-     * Removes an event listener from the specified events.
+     * {@inheritdoc}
      *
-     * @param string|array  $events
-     * @param object|string $listener
+     * @return void
      */
     public function removeEventListener($events, $listener)
     {
-        if (\is_string($listener)) {
-            $hash = '_service_'.$listener;
-        } else {
-            // Picks the hash code related to that listener
-            $hash = spl_object_hash($listener);
-        }
+        $hash = $this->getHash($listener);
 
         foreach ((array) $events as $event) {
-            // Check if actually have this listener associated
+            // Check if we actually have this listener associated
             if (isset($this->listeners[$event][$hash])) {
                 unset($this->listeners[$event][$hash]);
             }
+
+            if (isset($this->methods[$event][$hash])) {
+                unset($this->methods[$event][$hash]);
+            }
         }
+    }
+
+    private function initializeListeners(string $eventName)
+    {
+        foreach ($this->listeners[$eventName] as $hash => $listener) {
+            if (\is_string($listener)) {
+                $this->listeners[$eventName][$hash] = $listener = $this->container->get($listener);
+
+                $this->methods[$eventName][$hash] = $this->getMethod($listener, $eventName);
+            }
+        }
+        $this->initialized[$eventName] = true;
+    }
+
+    /**
+     * @param string|object $listener
+     */
+    private function getHash($listener): string
+    {
+        if (\is_string($listener)) {
+            return '_service_'.$listener;
+        }
+
+        return spl_object_hash($listener);
+    }
+
+    /**
+     * @param object $listener
+     */
+    private function getMethod($listener, string $event): string
+    {
+        if (!method_exists($listener, $event) && method_exists($listener, '__invoke')) {
+            return '__invoke';
+        }
+
+        return $event;
     }
 }

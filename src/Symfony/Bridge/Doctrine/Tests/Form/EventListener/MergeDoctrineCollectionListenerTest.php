@@ -28,7 +28,7 @@ class MergeDoctrineCollectionListenerTest extends TestCase
     private $factory;
     private $form;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->collection = new ArrayCollection(['test']);
         $this->dispatcher = new EventDispatcher();
@@ -37,7 +37,7 @@ class MergeDoctrineCollectionListenerTest extends TestCase
             ->getForm();
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         $this->collection = null;
         $this->dispatcher = null;
@@ -63,7 +63,7 @@ class MergeDoctrineCollectionListenerTest extends TestCase
         $submittedData = ['test'];
         $event = new FormEvent($this->getForm(), $submittedData);
 
-        $this->dispatcher->dispatch(FormEvents::SUBMIT, $event);
+        $this->dispatcher->dispatch($event, FormEvents::SUBMIT);
 
         $this->assertTrue($this->collection->contains('test'));
         $this->assertSame(1, $this->collection->count());
@@ -74,7 +74,7 @@ class MergeDoctrineCollectionListenerTest extends TestCase
         $submittedData = [];
         $event = new FormEvent($this->getForm(), $submittedData);
 
-        $this->dispatcher->dispatch(FormEvents::SUBMIT, $event);
+        $this->dispatcher->dispatch($event, FormEvents::SUBMIT);
 
         $this->assertTrue($this->collection->isEmpty());
     }

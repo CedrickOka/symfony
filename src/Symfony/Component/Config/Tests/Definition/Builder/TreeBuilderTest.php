@@ -124,7 +124,7 @@ class TreeBuilderTest extends TestCase
         $tree = $builder->buildTree();
         $children = $tree->getChildren();
 
-        $this->assertInternalType('array', $tree->getExample());
+        $this->assertIsArray($tree->getExample());
         $this->assertEquals('example', $children['child']->getExample());
     }
 
@@ -187,14 +187,5 @@ class TreeBuilderTest extends TestCase
         $this->assertArrayHasKey('foo', $childChildren);
         $this->assertInstanceOf('Symfony\Component\Config\Definition\BaseNode', $childChildren['foo']);
         $this->assertSame('propagation/child/foo', $childChildren['foo']->getPath());
-    }
-
-    /**
-     * @group legacy
-     * @expectedDeprecation A tree builder without a root node is deprecated since Symfony 4.2 and will not be supported anymore in 5.0.
-     */
-    public function testInitializingTreeBuildersWithoutRootNode()
-    {
-        new TreeBuilder();
     }
 }

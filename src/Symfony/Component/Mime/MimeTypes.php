@@ -11,6 +11,8 @@
 
 namespace Symfony\Component\Mime;
 
+use Symfony\Component\Mime\Exception\LogicException;
+
 /**
  * Manages MIME types and file extensions.
  *
@@ -35,6 +37,11 @@ namespace Symfony\Component\Mime;
 final class MimeTypes implements MimeTypesInterface
 {
     private $extensions = [];
+    private $mimeTypes = [];
+
+    /**
+     * @var MimeTypeGuesserInterface[]
+     */
     private $guessers = [];
     private static $default;
 
@@ -42,6 +49,10 @@ final class MimeTypes implements MimeTypesInterface
     {
         foreach ($map as $mimeType => $extensions) {
             $this->extensions[$mimeType] = $extensions;
+
+            foreach ($extensions as $extension) {
+                $this->mimeTypes[$extension] = $mimeType;
+            }
         }
         $this->registerGuesser(new FileBinaryMimeTypeGuesser());
         $this->registerGuesser(new FileinfoMimeTypeGuesser());
@@ -72,7 +83,11 @@ final class MimeTypes implements MimeTypesInterface
      */
     public function getExtensions(string $mimeType): array
     {
-        return $this->extensions[$mimeType] ?? self::$map[$mimeType] ?? [];
+        if ($this->extensions) {
+            $extensions = $this->extensions[$mimeType] ?? $this->extensions[$lcMimeType = strtolower($mimeType)] ?? null;
+        }
+
+        return $extensions ?? self::$map[$mimeType] ?? self::$map[$lcMimeType ?? strtolower($mimeType)] ?? [];
     }
 
     /**
@@ -80,7 +95,11 @@ final class MimeTypes implements MimeTypesInterface
      */
     public function getMimeTypes(string $ext): array
     {
-        return self::$reverseMap[$ext] ?? [];
+        if ($this->mimeTypes) {
+            $mimeTypes = $this->mimeTypes[$ext] ?? $this->mimeTypes[$lcExt = strtolower($ext)] ?? null;
+        }
+
+        return $mimeTypes ?? self::$reverseMap[$ext] ?? self::$reverseMap[$lcExt ?? strtolower($ext)] ?? [];
     }
 
     /**
@@ -118,7 +137,7 @@ final class MimeTypes implements MimeTypesInterface
         }
 
         if (!$this->isGuesserSupported()) {
-            throw new \LogicException('Unable to guess the MIME type as no guessers are available (have you enable the php_fileinfo extension?).');
+            throw new LogicException('Unable to guess the MIME type as no guessers are available (have you enable the php_fileinfo extension?).');
         }
 
         return null;
@@ -1136,6 +1155,7 @@ final class MimeTypes implements MimeTypesInterface
         'audio/x-flac' => ['flac'],
         'audio/x-flac+ogg' => ['oga', 'ogg'],
         'audio/x-gsm' => ['gsm'],
+        'audio/x-hx-aac-adts' => ['aac', 'adts', 'ass'],
         'audio/x-imelody' => ['imy', 'ime'],
         'audio/x-iriver-pla' => ['pla'],
         'audio/x-it' => ['it'],
@@ -1231,6 +1251,7 @@ final class MimeTypes implements MimeTypesInterface
         'image/psd' => ['psd'],
         'image/rle' => ['rle'],
         'image/sgi' => ['sgi'],
+        'image/svg' => ['svg'],
         'image/svg+xml' => ['svg', 'svgz'],
         'image/svg+xml-compressed' => ['svgz'],
         'image/tiff' => ['tiff', 'tif'],
@@ -1610,7 +1631,7 @@ final class MimeTypes implements MimeTypesInterface
         'a78' => ['application/x-atari-7800-rom'],
         'aa' => ['audio/vnd.audible', 'audio/vnd.audible.aax', 'audio/x-pn-audibleaudio'],
         'aab' => ['application/x-authorware-bin'],
-        'aac' => ['audio/aac', 'audio/x-aac'],
+        'aac' => ['audio/aac', 'audio/x-aac', 'audio/x-hx-aac-adts'],
         'aam' => ['application/x-authorware-map'],
         'aas' => ['application/x-authorware-seg'],
         'aax' => ['audio/vnd.audible', 'audio/vnd.audible.aax', 'audio/x-pn-audibleaudio'],
@@ -1627,7 +1648,7 @@ final class MimeTypes implements MimeTypesInterface
         'adf' => ['application/x-amiga-disk-format'],
         'adp' => ['audio/adpcm'],
         'ads' => ['text/x-adasrc'],
-        'adts' => ['audio/aac', 'audio/x-aac'],
+        'adts' => ['audio/aac', 'audio/x-aac', 'audio/x-hx-aac-adts'],
         'aep' => ['application/vnd.audiograph'],
         'afm' => ['application/x-font-afm', 'application/x-font-type1'],
         'afp' => ['application/vnd.ibm.modcap'],
@@ -1655,6 +1676,7 @@ final class MimeTypes implements MimeTypesInterface
         'appimage' => ['application/vnd.appimage', 'application/x-iso9660-appimage'],
         'application' => ['application/x-ms-application'],
         'apr' => ['application/vnd.lotus-approach'],
+        'aps' => ['application/postscript'],
         'ar' => ['application/x-archive'],
         'arc' => ['application/x-freearc'],
         'arj' => ['application/x-arj'],
@@ -1665,7 +1687,7 @@ final class MimeTypes implements MimeTypesInterface
         'asm' => ['text/x-asm'],
         'aso' => ['application/vnd.accpac.simply.aso'],
         'asp' => ['application/x-asp'],
-        'ass' => ['audio/aac', 'audio/x-aac', 'text/x-ssa'],
+        'ass' => ['audio/aac', 'audio/x-aac', 'audio/x-hx-aac-adts', 'text/x-ssa'],
         'asx' => ['application/x-ms-asx', 'audio/x-ms-asx', 'video/x-ms-asf', 'video/x-ms-wax', 'video/x-ms-wmx', 'video/x-ms-wvx'],
         'atc' => ['application/vnd.acucorp'],
         'atom' => ['application/atom+xml'],
@@ -1707,7 +1729,7 @@ final class MimeTypes implements MimeTypesInterface
         'bsdiff' => ['application/x-bsdiff'],
         'btif' => ['image/prs.btif'],
         'bz' => ['application/x-bzip', 'application/x-bzip2'],
-        'bz2' => ['application/x-bzip', 'application/x-bzip2'],
+        'bz2' => ['application/x-bz2', 'application/x-bzip', 'application/x-bzip2'],
         'c' => ['text/x-c', 'text/x-csrc'],
         'c++' => ['text/x-c++src'],
         'c11amc' => ['application/vnd.cluetrust.cartomobile-config'],
@@ -1958,7 +1980,7 @@ final class MimeTypes implements MimeTypesInterface
         'flc' => ['video/fli', 'video/x-fli', 'video/x-flic'],
         'fli' => ['video/fli', 'video/x-fli', 'video/x-flic'],
         'flo' => ['application/vnd.micrografx.flo'],
-        'flv' => ['application/x-flash-video', 'flv-application/octet-stream', 'video/flv', 'video/x-flv'],
+        'flv' => ['video/x-flv', 'application/x-flash-video', 'flv-application/octet-stream', 'video/flv'],
         'flw' => ['application/vnd.kde.kivio', 'application/x-kivio'],
         'flx' => ['text/vnd.fmi.flexstor'],
         'fly' => ['text/vnd.fly'],
@@ -2043,7 +2065,7 @@ final class MimeTypes implements MimeTypesInterface
         'gvp' => ['text/google-video-pointer', 'text/x-google-video-pointer'],
         'gxf' => ['application/gxf'],
         'gxt' => ['application/vnd.geonext'],
-        'gz' => ['application/gzip', 'application/x-gzip'],
+        'gz' => ['application/x-gzip', 'application/gzip'],
         'h' => ['text/x-c', 'text/x-chdr'],
         'h++' => ['text/x-c++hdr'],
         'h261' => ['video/h261'],
@@ -2066,7 +2088,7 @@ final class MimeTypes implements MimeTypesInterface
         'hpid' => ['application/vnd.hp-hpid'],
         'hpp' => ['text/x-c++hdr'],
         'hps' => ['application/vnd.hp-hps'],
-        'hqx' => ['application/mac-binhex40'],
+        'hqx' => ['application/stuffit', 'application/mac-binhex40'],
         'hs' => ['text/x-haskell'],
         'htke' => ['application/vnd.kenameaapp'],
         'htm' => ['text/html'],
@@ -2127,7 +2149,7 @@ final class MimeTypes implements MimeTypesInterface
         'j2k' => ['image/x-jp2-codestream'],
         'jad' => ['text/vnd.sun.j2me.app-descriptor'],
         'jam' => ['application/vnd.jam'],
-        'jar' => ['application/java-archive', 'application/x-jar', 'application/x-java-archive'],
+        'jar' => ['application/x-java-archive', 'application/java-archive', 'application/x-jar'],
         'java' => ['text/x-java', 'text/x-java-source'],
         'jceks' => ['application/x-java-jce-keystore'],
         'jisp' => ['application/vnd.jisp'],
@@ -2149,7 +2171,7 @@ final class MimeTypes implements MimeTypesInterface
         'jpr' => ['application/x-jbuilder-project'],
         'jpx' => ['application/x-jbuilder-project', 'image/jpx'],
         'jrd' => ['application/jrd+json'],
-        'js' => ['application/javascript', 'application/x-javascript', 'text/javascript'],
+        'js' => ['text/javascript', 'application/javascript', 'application/x-javascript'],
         'jsm' => ['application/javascript', 'application/x-javascript', 'text/javascript'],
         'json' => ['application/json'],
         'json-patch' => ['application/json-patch+json'],
@@ -2238,10 +2260,10 @@ final class MimeTypes implements MimeTypesInterface
         'm2ts' => ['video/mp2t'],
         'm2v' => ['video/mpeg'],
         'm3a' => ['audio/mpeg'],
-        'm3u' => ['application/m3u', 'application/vnd.apple.mpegurl', 'audio/m3u', 'audio/mpegurl', 'audio/x-m3u', 'audio/x-mp3-playlist', 'audio/x-mpegurl'],
+        'm3u' => ['audio/x-mpegurl', 'application/m3u', 'application/vnd.apple.mpegurl', 'audio/m3u', 'audio/mpegurl', 'audio/x-m3u', 'audio/x-mp3-playlist'],
         'm3u8' => ['application/m3u', 'application/vnd.apple.mpegurl', 'audio/m3u', 'audio/mpegurl', 'audio/x-m3u', 'audio/x-mp3-playlist', 'audio/x-mpegurl'],
         'm4' => ['application/x-m4'],
-        'm4a' => ['audio/m4a', 'audio/mp4', 'audio/x-m4a'],
+        'm4a' => ['audio/mp4', 'audio/m4a', 'audio/x-m4a'],
         'm4b' => ['audio/x-m4b'],
         'm4r' => ['audio/x-m4r'],
         'm4u' => ['video/vnd.mpegurl', 'video/x-mpegurl'],
@@ -2265,7 +2287,7 @@ final class MimeTypes implements MimeTypesInterface
         'mcd' => ['application/vnd.mcd'],
         'mcurl' => ['text/vnd.curl.mcurl'],
         'md' => ['text/markdown', 'text/x-markdown'],
-        'mdb' => ['application/mdb', 'application/msaccess', 'application/vnd.ms-access', 'application/vnd.msaccess', 'application/x-mdb', 'application/x-msaccess', 'zz-application/zz-winassoc-mdb'],
+        'mdb' => ['application/x-msaccess', 'application/mdb', 'application/msaccess', 'application/vnd.ms-access', 'application/vnd.msaccess', 'application/x-mdb', 'zz-application/zz-winassoc-mdb'],
         'mdi' => ['image/vnd.ms-modi'],
         'mdx' => ['application/x-genesis-32x-rom'],
         'me' => ['text/troff', 'text/x-troff-me'],
@@ -2322,7 +2344,7 @@ final class MimeTypes implements MimeTypesInterface
         'mp2' => ['audio/mp2', 'audio/mpeg', 'audio/x-mp2', 'video/mpeg', 'video/mpeg-system', 'video/x-mpeg', 'video/x-mpeg-system', 'video/x-mpeg2'],
         'mp21' => ['application/mp21'],
         'mp2a' => ['audio/mpeg'],
-        'mp3' => ['audio/mp3', 'audio/mpeg', 'audio/x-mp3', 'audio/x-mpeg', 'audio/x-mpg'],
+        'mp3' => ['audio/mpeg', 'audio/mp3', 'audio/x-mp3', 'audio/x-mpeg', 'audio/x-mpg'],
         'mp4' => ['video/mp4', 'video/mp4v-es', 'video/x-m4v'],
         'mp4a' => ['audio/mp4'],
         'mp4s' => ['application/mp4'],
@@ -2485,7 +2507,7 @@ final class MimeTypes implements MimeTypesInterface
         'pcx' => ['image/vnd.zbrush.pcx', 'image/x-pcx'],
         'pdb' => ['application/vnd.palm', 'application/x-aportisdoc', 'application/x-palm-database'],
         'pdc' => ['application/x-aportisdoc'],
-        'pdf' => ['application/acrobat', 'application/nappdf', 'application/pdf', 'application/x-pdf', 'image/pdf'],
+        'pdf' => ['application/pdf', 'application/acrobat', 'application/nappdf', 'application/x-pdf', 'image/pdf'],
         'pdf.bz2' => ['application/x-bzpdf'],
         'pdf.gz' => ['application/x-gzpdf'],
         'pdf.lz' => ['application/x-lzpdf'],
@@ -2542,7 +2564,7 @@ final class MimeTypes implements MimeTypesInterface
         'pps' => ['application/mspowerpoint', 'application/powerpoint', 'application/vnd.ms-powerpoint', 'application/x-mspowerpoint'],
         'ppsm' => ['application/vnd.ms-powerpoint.slideshow.macroenabled.12'],
         'ppsx' => ['application/vnd.openxmlformats-officedocument.presentationml.slideshow'],
-        'ppt' => ['application/mspowerpoint', 'application/powerpoint', 'application/vnd.ms-powerpoint', 'application/x-mspowerpoint'],
+        'ppt' => ['application/vnd.ms-powerpoint', 'application/mspowerpoint', 'application/powerpoint', 'application/x-mspowerpoint'],
         'pptm' => ['application/vnd.ms-powerpoint.presentation.macroenabled.12'],
         'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
         'ppz' => ['application/mspowerpoint', 'application/powerpoint', 'application/vnd.ms-powerpoint', 'application/x-mspowerpoint'],
@@ -2600,7 +2622,7 @@ final class MimeTypes implements MimeTypesInterface
         'raf' => ['image/x-fuji-raf'],
         'ram' => ['application/ram', 'audio/x-pn-realaudio'],
         'raml' => ['application/raml+yaml'],
-        'rar' => ['application/vnd.rar', 'application/x-rar', 'application/x-rar-compressed'],
+        'rar' => ['application/x-rar-compressed', 'application/vnd.rar', 'application/x-rar'],
         'ras' => ['image/x-cmu-raster'],
         'raw' => ['image/x-panasonic-raw', 'image/x-panasonic-rw'],
         'raw-disk-image' => ['application/x-raw-disk-image'],
@@ -2709,7 +2731,7 @@ final class MimeTypes implements MimeTypesInterface
         'silo' => ['model/mesh'],
         'sis' => ['application/vnd.symbian.install'],
         'sisx' => ['application/vnd.symbian.install', 'x-epoc/x-sisx-app'],
-        'sit' => ['application/stuffit', 'application/x-sit', 'application/x-stuffit'],
+        'sit' => ['application/x-stuffit', 'application/stuffit', 'application/x-sit'],
         'sitx' => ['application/x-stuffitx'],
         'siv' => ['application/sieve'],
         'sk' => ['image/x-skencil'],
@@ -2787,7 +2809,7 @@ final class MimeTypes implements MimeTypesInterface
         'sv4crc' => ['application/x-sv4crc'],
         'svc' => ['application/vnd.dvb.service'],
         'svd' => ['application/vnd.svd'],
-        'svg' => ['image/svg+xml'],
+        'svg' => ['image/svg+xml', 'image/svg'],
         'svgz' => ['image/svg+xml', 'image/svg+xml-compressed'],
         'svh' => ['text/x-svhdr'],
         'swa' => ['application/x-director'],
@@ -2807,7 +2829,7 @@ final class MimeTypes implements MimeTypesInterface
         't3' => ['application/x-t3vm-image'],
         'taglet' => ['application/vnd.mynfc'],
         'tao' => ['application/vnd.tao.intent-module-archive'],
-        'tar' => ['application/x-gtar', 'application/x-tar'],
+        'tar' => ['application/x-tar', 'application/x-gtar'],
         'tar.Z' => ['application/x-tarz'],
         'tar.bz' => ['application/x-bzip-compressed-tar'],
         'tar.bz2' => ['application/x-bzip-compressed-tar'],
@@ -2862,7 +2884,7 @@ final class MimeTypes implements MimeTypesInterface
         'tsv' => ['text/tab-separated-values'],
         'tta' => ['audio/tta', 'audio/x-tta'],
         'ttc' => ['font/collection'],
-        'ttf' => ['application/x-font-ttf', 'font/ttf'],
+        'ttf' => ['application/x-font-truetype', 'application/x-font-ttf', 'font/ttf'],
         'ttl' => ['text/turtle'],
         'ttx' => ['application/x-font-ttx'],
         'twd' => ['application/vnd.simtech-mindmapper'],
@@ -2931,7 +2953,7 @@ final class MimeTypes implements MimeTypesInterface
         'vb' => ['application/x-virtual-boy-rom'],
         'vcard' => ['text/directory', 'text/vcard', 'text/x-vcard'],
         'vcd' => ['application/x-cdlink'],
-        'vcf' => ['text/directory', 'text/vcard', 'text/x-vcard'],
+        'vcf' => ['text/x-vcard', 'text/directory', 'text/vcard'],
         'vcg' => ['application/vnd.groove-vcard'],
         'vcs' => ['application/ics', 'text/calendar', 'text/x-vcalendar'],
         'vct' => ['text/directory', 'text/vcard', 'text/x-vcard'],
@@ -2965,7 +2987,7 @@ final class MimeTypes implements MimeTypesInterface
         'vxml' => ['application/voicexml+xml'],
         'w3d' => ['application/x-director'],
         'wad' => ['application/x-doom', 'application/x-doom-wad', 'application/x-wii-wad'],
-        'wav' => ['audio/vnd.wave', 'audio/wav', 'audio/x-wav'],
+        'wav' => ['audio/wav', 'audio/vnd.wave', 'audio/x-wav'],
         'wax' => ['application/x-ms-asx', 'audio/x-ms-asx', 'audio/x-ms-wax', 'video/x-ms-wax', 'video/x-ms-wmx', 'video/x-ms-wvx'],
         'wb1' => ['application/x-quattropro'],
         'wb2' => ['application/x-quattropro'],
@@ -2988,14 +3010,14 @@ final class MimeTypes implements MimeTypesInterface
         'wkdownload' => ['application/x-partial-download'],
         'wks' => ['application/lotus123', 'application/vnd.lotus-1-2-3', 'application/vnd.ms-works', 'application/wk1', 'application/x-123', 'application/x-lotus123', 'zz-application/zz-winassoc-123'],
         'wm' => ['video/x-ms-wm'],
-        'wma' => ['audio/wma', 'audio/x-ms-wma'],
+        'wma' => ['audio/x-ms-wma', 'audio/wma'],
         'wmd' => ['application/x-ms-wmd'],
         'wmf' => ['application/wmf', 'application/x-msmetafile', 'application/x-wmf', 'image/wmf', 'image/x-win-metafile', 'image/x-wmf'],
         'wml' => ['text/vnd.wap.wml'],
         'wmlc' => ['application/vnd.wap.wmlc'],
         'wmls' => ['text/vnd.wap.wmlscript'],
         'wmlsc' => ['application/vnd.wap.wmlscriptc'],
-        'wmv' => ['video/x-ms-wmv'],
+        'wmv' => ['audio/x-ms-wmv', 'video/x-ms-wmv'],
         'wmx' => ['application/x-ms-asx', 'audio/x-ms-asx', 'video/x-ms-wax', 'video/x-ms-wmx', 'video/x-ms-wvx'],
         'wmz' => ['application/x-ms-wmz', 'application/x-msmetafile'],
         'woff' => ['application/font-woff', 'application/x-font-woff', 'font/woff'],
@@ -3068,7 +3090,7 @@ final class MimeTypes implements MimeTypesInterface
         'xll' => ['application/msexcel', 'application/vnd.ms-excel', 'application/x-msexcel', 'zz-application/zz-winassoc-xls'],
         'xlm' => ['application/msexcel', 'application/vnd.ms-excel', 'application/x-msexcel', 'zz-application/zz-winassoc-xls'],
         'xlr' => ['application/vnd.ms-works'],
-        'xls' => ['application/msexcel', 'application/vnd.ms-excel', 'application/x-msexcel', 'zz-application/zz-winassoc-xls'],
+        'xls' => ['application/vnd.ms-excel', 'application/msexcel', 'application/x-msexcel', 'zz-application/zz-winassoc-xls'],
         'xlsb' => ['application/vnd.ms-excel.sheet.binary.macroenabled.12'],
         'xlsm' => ['application/vnd.ms-excel.sheet.macroenabled.12'],
         'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
@@ -3117,7 +3139,7 @@ final class MimeTypes implements MimeTypesInterface
         'z8' => ['application/x-zmachine'],
         'zabw' => ['application/x-abiword'],
         'zaz' => ['application/vnd.zzazz.deck+xml'],
-        'zip' => ['application/x-zip', 'application/x-zip-compressed', 'application/zip'],
+        'zip' => ['application/zip', 'application/x-zip', 'application/x-zip-compressed'],
         'zir' => ['application/vnd.zul'],
         'zirz' => ['application/vnd.zul'],
         'zmm' => ['application/vnd.handheld-entertainment+xml'],

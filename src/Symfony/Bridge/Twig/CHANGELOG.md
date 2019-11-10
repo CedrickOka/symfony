@@ -1,10 +1,34 @@
 CHANGELOG
 =========
 
+5.0.0
+-----
+
+ * removed `TwigEngine` class, use `\Twig\Environment` instead.
+ * removed `transChoice` filter and token
+ * `HttpFoundationExtension` requires a `UrlHelper` on instantiation
+ * removed support for implicit STDIN usage in the `lint:twig` command, use `lint:twig -` (append a dash) instead to make it explicit.
+
+4.4.0
+-----
+
+ * marked all classes extending twig as `@final`
+ * deprecated to pass `$rootDir` and `$fileLinkFormatter` as 5th and 6th argument respectively to the 
+   `DebugCommand::__construct()` method, swap the variables position.
+ * the `LintCommand` lints all the templates stored in all configured Twig paths if none argument is provided
+ * deprecated accepting STDIN implicitly when using the `lint:twig` command, use `lint:twig -` (append a dash) instead to make it explicit.
+ * added `--show-deprecations` option to the `lint:twig` command
+ * added support for Bootstrap4 switches: add the `switch-custom` class to the label attributes of a `CheckboxType`
+ * Marked the `TwigDataCollector` class as `@final`.
+
 4.3.0
 -----
 
- * add `help_html` form option to display the `help` text as HTML
+ * added the `form_parent()` function that allows to reliably retrieve the parent form in Twig templates
+ * added the `workflow_transition_blockers()` function
+ * deprecated the `$requestStack` and `$requestContext` arguments of the 
+   `HttpFoundationExtension`, pass a `Symfony\Component\HttpFoundation\UrlHelper`
+   instance as the only argument instead
 
 4.2.0
 -----

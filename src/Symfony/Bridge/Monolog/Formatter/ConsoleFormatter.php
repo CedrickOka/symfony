@@ -115,7 +115,9 @@ class ConsoleFormatter implements FormatterInterface
         }
 
         $formatted = strtr($this->options['format'], [
-            '%datetime%' => $record['datetime']->format($this->options['date_format']),
+            '%datetime%' => $record['datetime'] instanceof \DateTimeInterface
+                ? $record['datetime']->format($this->options['date_format'])
+                : $record['datetime'],
             '%start_tag%' => sprintf('<%s>', $levelColor),
             '%level_name%' => sprintf($this->options['level_name_format'], $record['level_name']),
             '%end_tag%' => '</>',
@@ -131,7 +133,7 @@ class ConsoleFormatter implements FormatterInterface
     /**
      * @internal
      */
-    public function echoLine($line, $depth, $indentPad)
+    public function echoLine(string $line, int $depth, string $indentPad)
     {
         if (-1 !== $depth) {
             fwrite($this->outputBuffer, $line);
@@ -141,7 +143,7 @@ class ConsoleFormatter implements FormatterInterface
     /**
      * @internal
      */
-    public function castObject($v, array $a, Stub $s, $isNested)
+    public function castObject($v, array $a, Stub $s, bool $isNested): array
     {
         if ($this->options['multiline']) {
             return $a;
@@ -155,7 +157,7 @@ class ConsoleFormatter implements FormatterInterface
         return $a;
     }
 
-    private function replacePlaceHolder(array $record)
+    private function replacePlaceHolder(array $record): array
     {
         $message = $record['message'];
 
@@ -178,7 +180,7 @@ class ConsoleFormatter implements FormatterInterface
         return $record;
     }
 
-    private function dumpData($data, $colors = null)
+    private function dumpData($data, bool $colors = null): string
     {
         if (null === $this->dumper) {
             return '';

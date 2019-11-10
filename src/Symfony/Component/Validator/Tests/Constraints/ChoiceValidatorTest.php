@@ -37,11 +37,9 @@ class ChoiceValidatorTest extends ConstraintValidatorTestCase
         return ['foo', 'bar'];
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\UnexpectedValueException
-     */
     public function testExpectArrayIfMultipleIsTrue()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\UnexpectedValueException');
         $constraint = new Choice([
             'choices' => ['foo', 'bar'],
             'multiple' => true,
@@ -54,29 +52,23 @@ class ChoiceValidatorTest extends ConstraintValidatorTestCase
     {
         $this->validator->validate(
             null,
-            new Choice(
-                [
-                    'choices' => ['foo', 'bar'],
-                ]
-            )
+            new Choice([
+                'choices' => ['foo', 'bar'],
+            ])
         );
 
         $this->assertNoViolation();
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\ConstraintDefinitionException
-     */
     public function testChoicesOrCallbackExpected()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\ConstraintDefinitionException');
         $this->validator->validate('foobar', new Choice());
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\ConstraintDefinitionException
-     */
     public function testValidCallbackExpected()
     {
+        $this->expectException('Symfony\Component\Validator\Exception\ConstraintDefinitionException');
         $this->validator->validate('foobar', new Choice(['callback' => 'abcd']));
     }
 
@@ -100,13 +92,11 @@ class ChoiceValidatorTest extends ConstraintValidatorTestCase
 
     public function testValidChoiceCallbackClosure()
     {
-        $constraint = new Choice(
-            [
-                'callback' => function () {
-                    return ['foo', 'bar'];
-                },
-            ]
-        );
+        $constraint = new Choice([
+            'callback' => function () {
+                return ['foo', 'bar'];
+            },
+        ]);
 
         $this->validator->validate('bar', $constraint);
 

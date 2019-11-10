@@ -14,7 +14,7 @@ namespace Symfony\Component\Form\Extension\Core\Type;
 use Symfony\Component\Form\AbstractTypeExtension;
 use Symfony\Component\Form\Extension\Core\EventListener\TransformationFailureListener;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * @author Christian Flothmann <christian.flothmann@sensiolabs.de>

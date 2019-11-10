@@ -26,30 +26,28 @@ use Symfony\Component\Messenger\Tests\Fixtures\MultipleBusesMessageHandler;
  */
 class DebugCommandTest extends TestCase
 {
-    protected function setUp()
+    protected function setUp(): void
     {
         putenv('COLUMNS='.(119 + \strlen(PHP_EOL)));
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         putenv('COLUMNS=');
     }
 
     public function testOutput()
     {
-        $command = new DebugCommand(
-            [
-                'command_bus' => [
-                    DummyCommand::class => [DummyCommandHandler::class],
-                    MultipleBusesMessage::class => [MultipleBusesMessageHandler::class],
-                ],
-                'query_bus' => [
-                    DummyQuery::class => [DummyQueryHandler::class],
-                    MultipleBusesMessage::class => [MultipleBusesMessageHandler::class],
-                ],
-            ]
-        );
+        $command = new DebugCommand([
+            'command_bus' => [
+                DummyCommand::class => [[DummyCommandHandler::class, []]],
+                MultipleBusesMessage::class => [[MultipleBusesMessageHandler::class, []]],
+            ],
+            'query_bus' => [
+                DummyQuery::class => [[DummyQueryHandler::class, []]],
+                MultipleBusesMessage::class => [[MultipleBusesMessageHandler::class, []]],
+            ],
+        ]);
 
         $tester = new CommandTester($command);
         $tester->execute([], ['decorated' => false]);
@@ -141,12 +139,10 @@ TXT
         );
     }
 
-    /**
-     * @expectedException \Symfony\Component\Console\Exception\RuntimeException
-     * @expectedExceptionMessage Bus "unknown_bus" does not exist. Known buses are command_bus, query_bus.
-     */
     public function testExceptionOnUnknownBusArgument()
     {
+        $this->expectException('Symfony\Component\Console\Exception\RuntimeException');
+        $this->expectExceptionMessage('Bus "unknown_bus" does not exist. Known buses are command_bus, query_bus.');
         $command = new DebugCommand(['command_bus' => [], 'query_bus' => []]);
 
         $tester = new CommandTester($command);
