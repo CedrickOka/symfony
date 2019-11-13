@@ -59,8 +59,6 @@ Console
 Debug
 -----
 
- * Removed the `Debug` class, use the one from the `ErrorRenderer` component instead
- * Removed the `FlattenException` class, use the one from the `ErrorRenderer` component instead
  * Removed the component in favor of the `ErrorHandler` component
 
 DependencyInjection
@@ -293,6 +291,8 @@ HttpKernel
  * Removed `TranslatorListener` in favor of `LocaleAwareListener`
  * The `DebugHandlersListener` class has been made `final`
  * Removed `SaveSessionListener` in favor of `AbstractSessionListener`
+ * Removed methods `ExceptionEvent::get/setException()`, use `get/setThrowable()` instead
+ * Removed class `ExceptionListener`, use `ErrorListener` instead
  * Added new Bundle directory convention consistent with standard skeletons:
 
     ```

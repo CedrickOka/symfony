@@ -25,7 +25,6 @@
         "doctrine/persistence": "~1.0",
         "symfony/console": "^4.4|^5.0",
         "symfony/dependency-injection": "^4.4|^5.0",
-        "symfony/error-renderer": "^4.4|^5.0",
         "symfony/event-dispatcher": "^4.4|^5.0",
         "symfony/http-kernel": "^4.4|^5.0",
         "symfony/process": "^4.4|^5.0",
@@ -33,8 +32,7 @@
         "symfony/serializer": "^4.4|^5.0",
         "symfony/service-contracts": "^1.1|^2",
         "symfony/stopwatch": "^4.4|^5.0",
-        "symfony/validator": "^4.4|^5.0",
-        "symfony/var-dumper": "^4.4|^5.0"
+        "symfony/validator": "^4.4|^5.0"
     },
     "conflict": {
         "symfony/event-dispatcher": "<4.4",
